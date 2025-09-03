@@ -17,6 +17,5 @@ public class Reservation : BaseEntity
     public ReservationStatus Status { get; set; } = ReservationStatus.Active;
 
     // Om bokningen resulterade i en faktisk utlåning
-    public Guid? LoanId { get; set; }
     public Loan? Loan { get; set; }
 }
