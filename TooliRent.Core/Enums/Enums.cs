@@ -16,3 +16,10 @@ public enum ToolStatus
     Loaned = 2,
     Maintenance = 3
 }
+
+public enum ReservationStatus
+{
+    Active = 0,     // bokad, ej påbörjad
+    Cancelled = 1,  // avbokad
+    Completed = 2   // avslutad (t.ex. efter återlämning via Loan)
+}
