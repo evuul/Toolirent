@@ -104,14 +104,14 @@
         }
       }
     },
-    "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastrucure/TooliRent.Infrastrucure.csproj": {
+    "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastructure/TooliRent.Infrastructure.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastrucure/TooliRent.Infrastrucure.csproj",
-        "projectName": "TooliRent.Infrastrucure",
-        "projectPath": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastrucure/TooliRent.Infrastrucure.csproj",
+        "projectUniqueName": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastructure/TooliRent.Infrastructure.csproj",
+        "projectName": "TooliRent.Infrastructure",
+        "projectPath": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastructure/TooliRent.Infrastructure.csproj",
         "packagesPath": "/Users/alexanderek/.nuget/packages/",
-        "outputPath": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastrucure/obj/",
+        "outputPath": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastructure/obj/",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "/Users/alexanderek/.nuget/NuGet/NuGet.Config"
@@ -125,7 +125,11 @@
         "frameworks": {
           "net8.0": {
             "targetAlias": "net8.0",
-            "projectReferences": {}
+            "projectReferences": {
+              "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Core/TooliRent.Core.csproj": {
+                "projectPath": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Core/TooliRent.Core.csproj"
+              }
+            }
           }
         },
         "warningProperties": {
@@ -225,7 +229,14 @@
         "frameworks": {
           "net8.0": {
             "targetAlias": "net8.0",
-            "projectReferences": {}
+            "projectReferences": {
+              "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Core/TooliRent.Core.csproj": {
+                "projectPath": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Core/TooliRent.Core.csproj"
+              },
+              "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastructure/TooliRent.Infrastructure.csproj": {
+                "projectPath": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastructure/TooliRent.Infrastructure.csproj"
+              }
+            }
           }
         },
         "warningProperties": {
@@ -329,8 +340,8 @@
               "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Core/TooliRent.Core.csproj": {
                 "projectPath": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Core/TooliRent.Core.csproj"
               },
-              "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastrucure/TooliRent.Infrastrucure.csproj": {
-                "projectPath": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastrucure/TooliRent.Infrastrucure.csproj"
+              "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastructure/TooliRent.Infrastructure.csproj": {
+                "projectPath": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastructure/TooliRent.Infrastructure.csproj"
               },
               "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Services/TooliRent.Services.csproj": {
                 "projectPath": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Services/TooliRent.Services.csproj"

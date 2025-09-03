@@ -1713,6 +1713,25 @@
             "rid": "win"
           }
         }
+      },
+      "TooliRent.Core/1.0.0": {
+        "type": "project",
+        "framework": ".NETCoreApp,Version=v8.0",
+        "dependencies": {
+          "AutoMapper": "15.0.1",
+          "FluentValidation": "12.0.0",
+          "FluentValidation.AspNetCore": "11.3.1",
+          "FluentValidation.DependencyInjectionExtensions": "12.0.0",
+          "Microsoft.AspNetCore.Authentication.JwtBearer": "8.0.19",
+          "Microsoft.AspNetCore.Identity.EntityFrameworkCore": "8.0.19",
+          "Microsoft.EntityFrameworkCore.SqlServer": "9.0.7"
+        },
+        "compile": {
+          "bin/placeholder/TooliRent.Core.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/TooliRent.Core.dll": {}
+        }
       }
     }
   },
@@ -4741,6 +4760,11 @@
         "system.windows.extensions.nuspec",
         "useSharedDesignerContext.txt"
       ]
+    },
+    "TooliRent.Core/1.0.0": {
+      "type": "project",
+      "path": "../TooliRent.Core/TooliRent.Core.csproj",
+      "msbuildProject": "../TooliRent.Core/TooliRent.Core.csproj"
     }
   },
   "projectFileDependencyGroups": {
@@ -4753,7 +4777,8 @@
       "Microsoft.AspNetCore.Identity.EntityFrameworkCore >= 8.0.19",
       "Microsoft.EntityFrameworkCore.Design >= 9.0.7",
       "Microsoft.EntityFrameworkCore.SqlServer >= 9.0.7",
-      "Microsoft.EntityFrameworkCore.Tools >= 9.0.7"
+      "Microsoft.EntityFrameworkCore.Tools >= 9.0.7",
+      "TooliRent.Core >= 1.0.0"
     ]
   },
   "packageFolders": {
@@ -4762,11 +4787,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastrucure/TooliRent.Infrastrucure.csproj",
-      "projectName": "TooliRent.Infrastrucure",
-      "projectPath": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastrucure/TooliRent.Infrastrucure.csproj",
+      "projectUniqueName": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastructure/TooliRent.Infrastructure.csproj",
+      "projectName": "TooliRent.Infrastructure",
+      "projectPath": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastructure/TooliRent.Infrastructure.csproj",
       "packagesPath": "/Users/alexanderek/.nuget/packages/",
-      "outputPath": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastrucure/obj/",
+      "outputPath": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastructure/obj/",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "/Users/alexanderek/.nuget/NuGet/NuGet.Config"
@@ -4780,7 +4805,11 @@
       "frameworks": {
         "net8.0": {
           "targetAlias": "net8.0",
-          "projectReferences": {}
+          "projectReferences": {
+            "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Core/TooliRent.Core.csproj": {
+              "projectPath": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Core/TooliRent.Core.csproj"
+            }
+          }
         }
       },
       "warningProperties": {
