@@ -31,7 +31,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\TooliRent.Core\TooliRent.Core.csproj" />
-      <ProjectReference Include="..\TooliRent.Infrastrucure\TooliRent.Infrastrucure.csproj" />
+      <ProjectReference Include="..\TooliRent.Infrastructure\TooliRent.Infrastructure.csproj" />
       <ProjectReference Include="..\TooliRent.Services\TooliRent.Services.csproj" />
     </ItemGroup>
 

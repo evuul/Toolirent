@@ -2,7 +2,7 @@ using System.Linq.Expressions;
 
 namespace TooliRent.Core.Interfaces;
 
-// 	•	IRepository<T> → Ger oss generiska CRUD-metoder.
+// IRepository<T> → Ger oss generiska CRUD-metoder.
 
 
 public interface IRepository<T> where T : class

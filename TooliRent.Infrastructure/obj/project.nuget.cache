@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "OAuhZYrcnSo=",
+  "dgSpecHash": "GevRo3dFLdQ=",
   "success": true,
-  "projectFilePath": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastrucure/TooliRent.Infrastrucure.csproj",
+  "projectFilePath": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastructure/TooliRent.Infrastructure.csproj",
   "expectedPackageFiles": [
     "/Users/alexanderek/.nuget/packages/automapper/15.0.1/automapper.15.0.1.nupkg.sha512",
     "/Users/alexanderek/.nuget/packages/azure.core/1.38.0/azure.core.1.38.0.nupkg.sha512",

@@ -1820,7 +1820,7 @@
           "bin/placeholder/TooliRent.Core.dll": {}
         }
       },
-      "TooliRent.Infrastrucure/1.0.0": {
+      "TooliRent.Infrastructure/1.0.0": {
         "type": "project",
         "framework": ".NETCoreApp,Version=v8.0",
         "dependencies": {
@@ -1830,13 +1830,14 @@
           "FluentValidation.DependencyInjectionExtensions": "12.0.0",
           "Microsoft.AspNetCore.Authentication.JwtBearer": "8.0.19",
           "Microsoft.AspNetCore.Identity.EntityFrameworkCore": "8.0.19",
-          "Microsoft.EntityFrameworkCore.SqlServer": "9.0.7"
+          "Microsoft.EntityFrameworkCore.SqlServer": "9.0.7",
+          "TooliRent.Core": "1.0.0"
         },
         "compile": {
-          "bin/placeholder/TooliRent.Infrastrucure.dll": {}
+          "bin/placeholder/TooliRent.Infrastructure.dll": {}
         },
         "runtime": {
-          "bin/placeholder/TooliRent.Infrastrucure.dll": {}
+          "bin/placeholder/TooliRent.Infrastructure.dll": {}
         }
       },
       "TooliRent.Services/1.0.0": {
@@ -1849,7 +1850,9 @@
           "FluentValidation.DependencyInjectionExtensions": "12.0.0",
           "Microsoft.AspNetCore.Authentication.JwtBearer": "8.0.19",
           "Microsoft.AspNetCore.Identity.EntityFrameworkCore": "8.0.19",
-          "Microsoft.EntityFrameworkCore.SqlServer": "9.0.7"
+          "Microsoft.EntityFrameworkCore.SqlServer": "9.0.7",
+          "TooliRent.Core": "1.0.0",
+          "TooliRent.Infrastructure": "1.0.0"
         },
         "compile": {
           "bin/placeholder/TooliRent.Services.dll": {}
@@ -5220,10 +5223,10 @@
       "path": "../TooliRent.Core/TooliRent.Core.csproj",
       "msbuildProject": "../TooliRent.Core/TooliRent.Core.csproj"
     },
-    "TooliRent.Infrastrucure/1.0.0": {
+    "TooliRent.Infrastructure/1.0.0": {
       "type": "project",
-      "path": "../TooliRent.Infrastrucure/TooliRent.Infrastrucure.csproj",
-      "msbuildProject": "../TooliRent.Infrastrucure/TooliRent.Infrastrucure.csproj"
+      "path": "../TooliRent.Infrastructure/TooliRent.Infrastructure.csproj",
+      "msbuildProject": "../TooliRent.Infrastructure/TooliRent.Infrastructure.csproj"
     },
     "TooliRent.Services/1.0.0": {
       "type": "project",
@@ -5244,7 +5247,7 @@
       "Microsoft.EntityFrameworkCore.Tools >= 9.0.7",
       "Swashbuckle.AspNetCore >= 6.4.0",
       "TooliRent.Core >= 1.0.0",
-      "TooliRent.Infrastrucure >= 1.0.0",
+      "TooliRent.Infrastructure >= 1.0.0",
       "TooliRent.Services >= 1.0.0"
     ]
   },
@@ -5276,8 +5279,8 @@
             "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Core/TooliRent.Core.csproj": {
               "projectPath": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Core/TooliRent.Core.csproj"
             },
-            "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastrucure/TooliRent.Infrastrucure.csproj": {
-              "projectPath": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastrucure/TooliRent.Infrastrucure.csproj"
+            "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastructure/TooliRent.Infrastructure.csproj": {
+              "projectPath": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastructure/TooliRent.Infrastructure.csproj"
             },
             "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Services/TooliRent.Services.csproj": {
               "projectPath": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Services/TooliRent.Services.csproj"
