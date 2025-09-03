@@ -1,3 +1,5 @@
+using TooliRent.Core.Enums;
+
 namespace TooliRent.Core.Models;
 public class Reservation : BaseEntity
 {
@@ -11,8 +13,10 @@ public class Reservation : BaseEntity
 
     public decimal TotalPrice { get; set; }
     public bool IsPaid { get; set; }
+    
+    public ReservationStatus Status { get; set; } = ReservationStatus.Active;
 
-    // valfri koppling till faktisk utlåning om den blev av
+    // Om bokningen resulterade i en faktisk utlåning
     public Guid? LoanId { get; set; }
     public Loan? Loan { get; set; }
 }
