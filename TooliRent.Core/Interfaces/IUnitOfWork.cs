@@ -10,11 +10,11 @@ namespace TooliRent.Core.Interfaces;
 // vilket frigör resurser och stänger databaskopplingar.
 public interface IUnitOfWork : IDisposable
 {
-    IRepository<Member> Members { get; }
-    IRepository<Tool> Tools { get; }
-    IRepository<ToolCategory> ToolCategories { get; }
-    IRepository<Reservation> Reservations { get; }
-    IRepository<Loan> Loans { get; }
+    IToolRepository Tools { get; }
+    IToolCategoryRepository ToolCategories { get; }
+    IReservationRepository Reservations { get; }
+    ILoanRepository Loans { get; }
+    IMemberRepository Members { get; }
 
-    Task<int> CompleteAsync();
+    Task<int> SaveChangesAsync(CancellationToken ct = default);
 }
