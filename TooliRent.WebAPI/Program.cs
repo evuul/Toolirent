@@ -5,7 +5,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using TooliRent.Infrastructure.Auth;
 using TooliRent.Infrastructure.Data;
-using TooliRent.WebAPI.IdentitySeed; // <-- din seeder-klass (om du lagt den i WebAPI-projektet)
+using TooliRent.WebAPI.IdentitySeed;
+
+// 👇 lägg till dessa
+using TooliRent.Core.Interfaces;
+using TooliRent.Infrastructure;
+using TooliRent.Infrastructure.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,7 +30,6 @@ builder.Services.AddIdentityCore<IdentityUser>(o =>
 {
     o.User.RequireUniqueEmail = true;
     o.Password.RequiredLength = 8;
-    // lägg gärna till fler regler vid behov (RequireNonAlphanumeric etc)
 })
 .AddRoles<IdentityRole>()
 .AddEntityFrameworkStores<AuthDbContext>()
@@ -57,6 +61,16 @@ builder.Services
 builder.Services.AddAuthorization();
 
 // ----------------------------
+// Repositories + UnitOfWork (DI)
+// ----------------------------
+builder.Services.AddScoped<IToolRepository, ToolRepository>();
+builder.Services.AddScoped<IToolCategoryRepository, ToolCategoryRepository>();
+builder.Services.AddScoped<IReservationRepository, ReservationRepository>();
+builder.Services.AddScoped<ILoanRepository, LoanRepository>();
+builder.Services.AddScoped<IMemberRepository, MemberRepository>();
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+// ----------------------------
 // MVC + Swagger (med Bearer)
 // ----------------------------
 builder.Services.AddControllers();
@@ -65,7 +79,6 @@ builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new() { Title = "TooliRent API", Version = "v1" });
 
-    // Bearer i Swagger UI
     c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
     {
         Name = "Authorization",

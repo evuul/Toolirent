@@ -11,7 +11,7 @@ public class Tool : BaseEntity
     public decimal RentalPricePerDay { get; set; }
 
     // Är verktyget i drift? (separerat från "tillgängligt just nu")
-    public bool IsActive { get; set; } = true;
+    public bool IsAvailable { get; set; } = true;
 
     // (valfritt) Statusfält – om du inte vill beräkna tillgänglighet dynamiskt
     public ToolStatus Status { get; set; } = ToolStatus.Available;
