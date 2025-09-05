@@ -1,18 +1,24 @@
 using System.Text;
+using FluentValidation;
+using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+
 using TooliRent.Infrastructure.Auth;
 using TooliRent.Infrastructure.Data;
 using TooliRent.WebAPI.IdentitySeed;
 
-// 👇 lägg till dessa
+// Repos + UoW
 using TooliRent.Core.Interfaces;
-using TooliRent.Services.Interfaces;
 using TooliRent.Infrastructure.Repositories;
 using TooliRent.Infrastructure.UnitOfWork;
+
+// Services
+using TooliRent.Services.Interfaces;
 using TooliRent.Services.Services;
+using TooliRent.Services.Mapping; // MappingProfile
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -26,7 +32,7 @@ builder.Services.AddDbContext<TooliRentDbContext>(opt =>
     opt.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // ----------------------------
-// Identity (kopplad till AuthDbContext)
+// Identity (AuthDbContext)
 // ----------------------------
 builder.Services.AddIdentityCore<IdentityUser>(o =>
 {
@@ -73,15 +79,28 @@ builder.Services.AddScoped<IMemberRepository, MemberRepository>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
 // ----------------------------
-// Services
+// Application Services (DI)
 // ----------------------------
-
 builder.Services.AddScoped<IToolService, ToolService>();
+builder.Services.AddScoped<IToolCategoryService, ToolCategoryService>();
+builder.Services.AddScoped<IMemberService, MemberService>();
+builder.Services.AddScoped<IReservationService, ReservationService>();
+builder.Services.AddScoped<ILoanService, LoanService>();
 
 // ----------------------------
-// MVC + Swagger (med Bearer)
+// AutoMapper
+// ----------------------------
+builder.Services.AddAutoMapper(cfg => { }, typeof(MappingProfile));
+
+// ----------------------------
+// MVC + FluentValidation + Swagger
 // ----------------------------
 builder.Services.AddControllers();
+
+// Aktivera automatisk model validation och ladda alla validators från Services-assemblyn
+builder.Services.AddFluentValidationAutoValidation();
+builder.Services.AddValidatorsFromAssemblyContaining<MappingProfile>();
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
