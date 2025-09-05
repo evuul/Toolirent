@@ -11,75 +11,94 @@ public static class TooliRentDataSeeder
         using var scope = services.CreateScope();
         var ctx = scope.ServiceProvider.GetRequiredService<TooliRentDbContext>();
 
-        // Kör migrationer
         await ctx.Database.MigrateAsync();
-
-        // Kolla om det redan finns data
-        if (await ctx.ToolCategories.AnyAsync() || await ctx.Tools.AnyAsync() || await ctx.Members.AnyAsync())
-            return;
 
         var now = DateTime.UtcNow;
 
-        // --- Categories ---
-        var catHand = new ToolCategory { Id = Guid.NewGuid(), Name = "Handverktyg", CreatedAtUtc = now };
-        var catEl   = new ToolCategory { Id = Guid.NewGuid(), Name = "Elverktyg", CreatedAtUtc = now };
+        // Fixed ids så vi kan köra om seedern utan dubletter
+        var catHandId = Guid.Parse("aaaaaaaa-1111-1111-1111-aaaaaaaaaaaa");
+        var catElId   = Guid.Parse("bbbbbbbb-2222-2222-2222-bbbbbbbbbbbb");
 
-        ctx.ToolCategories.AddRange(catHand, catEl);
+        var toolHammerId = Guid.Parse("11111111-aaaa-aaaa-aaaa-111111111111");
+        var toolDrillId  = Guid.Parse("22222222-bbbb-bbbb-bbbb-222222222222");
+        var toolSawId    = Guid.Parse("33333333-cccc-cccc-cccc-333333333333");
+
+        // --- Categories ---
+        if (!await ctx.ToolCategories.AnyAsync(c => c.Id == catHandId))
+        {
+            ctx.ToolCategories.Add(new ToolCategory { Id = catHandId, Name = "Handverktyg", CreatedAtUtc = now });
+        }
+        if (!await ctx.ToolCategories.AnyAsync(c => c.Id == catElId))
+        {
+            ctx.ToolCategories.Add(new ToolCategory { Id = catElId, Name = "Elverktyg", CreatedAtUtc = now });
+        }
+        await ctx.SaveChangesAsync();
 
         // --- Tools ---
-        var hammer = new Tool
+        if (!await ctx.Tools.AnyAsync(t => t.Id == toolHammerId))
         {
-            Id = Guid.NewGuid(),
-            Name = "Hammare",
-            Description = "Standard hammare för snickeri",
-            RentalPricePerDay = 25,
-            CategoryId = catHand.Id,
-            CreatedAtUtc = now
-        };
-
-        var drill = new Tool
+            ctx.Tools.Add(new Tool
+            {
+                Id = toolHammerId,
+                Name = "Hammare",
+                Description = "Standard hammare för snickeri",
+                RentalPricePerDay = 25,
+                CategoryId = catHandId,
+                IsAvailable = true,
+                CreatedAtUtc = now
+            });
+        }
+        if (!await ctx.Tools.AnyAsync(t => t.Id == toolDrillId))
         {
-            Id = Guid.NewGuid(),
-            Name = "Borrmaskin",
-            Description = "Slagborrmaskin 18V",
-            RentalPricePerDay = 120,
-            CategoryId = catEl.Id,
-            CreatedAtUtc = now
-        };
-
-        var saw = new Tool
+            ctx.Tools.Add(new Tool
+            {
+                Id = toolDrillId,
+                Name = "Borrmaskin",
+                Description = "Slagborrmaskin 18V",
+                RentalPricePerDay = 120,
+                CategoryId = catElId,
+                IsAvailable = true,
+                CreatedAtUtc = now
+            });
+        }
+        if (!await ctx.Tools.AnyAsync(t => t.Id == toolSawId))
         {
-            Id = Guid.NewGuid(),
-            Name = "Tigersåg",
-            Description = "El-tigersåg för grovkapning",
-            RentalPricePerDay = 150,
-            CategoryId = catEl.Id,
-            CreatedAtUtc = now
-        };
+            ctx.Tools.Add(new Tool
+            {
+                Id = toolSawId,
+                Name = "Tigersåg",
+                Description = "El-tigersåg för grovkapning",
+                RentalPricePerDay = 150,
+                CategoryId = catElId,
+                IsAvailable = true,
+                CreatedAtUtc = now
+            });
+        }
+        await ctx.SaveChangesAsync();
 
-        ctx.Tools.AddRange(hammer, drill, saw);
-
-        // --- Members ---
-        var egzon = new Member
+        // --- Members (identifiera via email) ---
+        if (!await ctx.Members.AnyAsync(m => m.Email == "egzon@example.com"))
         {
-            Id = Guid.NewGuid(),
-            FirstName = "Egzon",
-            LastName = "Demo",
-            Email = "egzon@example.com",
-            CreatedAtUtc = now
-        };
-
-        var alex = new Member
+            ctx.Members.Add(new Member
+            {
+                Id = Guid.Parse("44444444-dddd-dddd-dddd-444444444444"),
+                FirstName = "Egzon",
+                LastName = "Demo",
+                Email = "egzon@example.com",
+                CreatedAtUtc = now
+            });
+        }
+        if (!await ctx.Members.AnyAsync(m => m.Email == "alexander@example.com"))
         {
-            Id = Guid.NewGuid(),
-            FirstName = "Alexander",
-            LastName = "Demo",
-            Email = "alexander@example.com",
-            CreatedAtUtc = now
-        };
-
-        ctx.Members.AddRange(egzon, alex);
-
+            ctx.Members.Add(new Member
+            {
+                Id = Guid.Parse("55555555-eeee-eeee-eeee-555555555555"),
+                FirstName = "Alexander",
+                LastName = "Demo",
+                Email = "alexander@example.com",
+                CreatedAtUtc = now
+            });
+        }
         await ctx.SaveChangesAsync();
     }
 }

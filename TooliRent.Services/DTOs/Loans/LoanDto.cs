@@ -1,14 +1,5 @@
 namespace TooliRent.Services.DTOs.Loans;
 
-public record LoanCheckoutDto(
-    Guid ToolId,
-    Guid MemberId,
-    DateTime DueAtUtc,
-    Guid? ReservationId
-);
-
-public record LoanReturnDto(DateTime ReturnedAtUtc);
-
 public record LoanDto(
     Guid Id,
     Guid ToolId,
@@ -18,6 +9,7 @@ public record LoanDto(
     DateTime CheckedOutAtUtc,
     DateTime DueAtUtc,
     DateTime? ReturnedAtUtc,
-    int Status,
-    decimal? LateFee
+    int Status,        // castas från enum
+    decimal? LateFee,
+    string? Notes
 );

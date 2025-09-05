@@ -1,12 +1,5 @@
 namespace TooliRent.Services.DTOs.Reservations;
 
-public record ReservationCreateDto(
-    Guid ToolId,
-    Guid MemberId,
-    DateTime StartUtc,
-    DateTime EndUtc
-);
-
 public record ReservationDto(
     Guid Id,
     Guid ToolId,
@@ -17,5 +10,5 @@ public record ReservationDto(
     DateTime EndUtc,
     decimal TotalPrice,
     bool IsPaid,
-    int Status // mappar enum som int/ev. string vid behov
+    int Status // castas från enum i mappning
 );
