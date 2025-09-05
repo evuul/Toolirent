@@ -16,6 +16,8 @@ public class ToolCategoryRepository : Repository<ToolCategory>, IToolCategoryRep
 
     public async Task<bool> NameExistsAsync(string name, Guid? excludeId = null, CancellationToken ct = default)
     {
+        var normalized = name.Trim().ToUpperInvariant();
+
         var query = _ctx.ToolCategories.AsQueryable();
 
         if (excludeId.HasValue)
@@ -23,6 +25,6 @@ public class ToolCategoryRepository : Repository<ToolCategory>, IToolCategoryRep
             query = query.Where(c => c.Id != excludeId.Value);
         }
 
-        return await query.AnyAsync(c => c.Name == name, ct);
+        return await query.AnyAsync(c => c.Name.Trim().ToUpper() == normalized, ct);
     }
 }
