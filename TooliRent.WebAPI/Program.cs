@@ -9,8 +9,10 @@ using TooliRent.WebAPI.IdentitySeed;
 
 // 👇 lägg till dessa
 using TooliRent.Core.Interfaces;
-using TooliRent.Infrastructure;
+using TooliRent.Services.Interfaces;
 using TooliRent.Infrastructure.Repositories;
+using TooliRent.Infrastructure.UnitOfWork;
+using TooliRent.Services.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -69,6 +71,12 @@ builder.Services.AddScoped<IReservationRepository, ReservationRepository>();
 builder.Services.AddScoped<ILoanRepository, LoanRepository>();
 builder.Services.AddScoped<IMemberRepository, MemberRepository>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+// ----------------------------
+// Services
+// ----------------------------
+
+builder.Services.AddScoped<IToolService, ToolService>();
 
 // ----------------------------
 // MVC + Swagger (med Bearer)

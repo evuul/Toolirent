@@ -1,8 +1,7 @@
 using TooliRent.Core.Interfaces;
 using TooliRent.Infrastructure.Data;
-using TooliRent.Infrastructure.Repositories;
 
-namespace TooliRent.Infrastructure;
+namespace TooliRent.Infrastructure.UnitOfWork;
 
 public class UnitOfWork : IUnitOfWork
 {
