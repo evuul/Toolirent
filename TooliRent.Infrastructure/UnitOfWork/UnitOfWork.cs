@@ -1,4 +1,5 @@
 using TooliRent.Core.Interfaces;
+using TooliRent.Core.Interfaces.Repositories;
 using TooliRent.Infrastructure.Data;
 
 namespace TooliRent.Infrastructure.UnitOfWork;

@@ -1,4 +1,5 @@
 using TooliRent.Core.Interfaces;
+using TooliRent.Core.Interfaces.Repositories;
 using TooliRent.Core.Models;
 
 namespace TooliRent.Core.Interfaces;

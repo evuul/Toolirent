@@ -8,7 +8,7 @@ public interface IToolService
         string? query,
         int page,
         int pageSize,
-        string? categoryName = null,   // <— nytt
+        string? categoryName = null,
         CancellationToken ct = default);
 
     Task<ToolDto?> GetAsync(Guid id, CancellationToken ct = default);
