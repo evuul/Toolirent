@@ -10,5 +10,5 @@ public record ReservationDto(
     DateTime EndUtc,
     decimal TotalPrice,
     bool IsPaid,
-    int Status // castas från enum i mappning
+    int Status // ReservationStatus enum → int
 );

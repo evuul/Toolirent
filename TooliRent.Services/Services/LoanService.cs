@@ -1,6 +1,8 @@
+using AutoMapper;
 using TooliRent.Core.Enums;
 using TooliRent.Core.Interfaces;
 using TooliRent.Core.Models;
+using TooliRent.Services.DTOs.Loans;
 using TooliRent.Services.Interfaces;
 
 namespace TooliRent.Services.Services;
@@ -8,74 +10,82 @@ namespace TooliRent.Services.Services;
 public class LoanService : ILoanService
 {
     private readonly IUnitOfWork _uow;
+    private readonly IMapper _mapper;
 
-    public LoanService(IUnitOfWork uow)
+    public LoanService(IUnitOfWork uow, IMapper mapper)
     {
         _uow = uow;
+        _mapper = mapper;
     }
 
-    public Task<Loan?> GetAsync(Guid id, CancellationToken ct = default)
-        => _uow.Loans.GetByIdAsync(id, ct);
-
-    public Task<(IEnumerable<Loan> Items, int Total)> SearchAsync(
-        Guid? memberId, Guid? toolId, LoanStatus? status,
-        bool openOnly, int page, int pageSize, CancellationToken ct = default)
-        => _uow.Loans.SearchAsync(memberId, toolId, status, openOnly, page, pageSize, ct);
-
-    public async Task<Loan> CheckoutAsync(Guid toolId, Guid memberId, DateTime dueAtUtc, Guid? reservationId = null, CancellationToken ct = default)
+    public async Task<LoanDto?> GetAsync(Guid id, CancellationToken ct = default)
     {
-        // kontrollera om verktyget är ledigt
-        if (await _uow.Loans.ToolIsLoanedNowAsync(toolId, ct))
-            throw new InvalidOperationException("Tool is already loaned out.");
+        var loan = await _uow.Loans.GetByIdAsync(id, ct);
+        return loan is null ? null : _mapper.Map<LoanDto>(loan);
+    }
 
+    public async Task<LoanDto> CheckoutAsync(LoanCheckoutDto dto, CancellationToken ct = default)
+    {
+        var tool   = await _uow.Tools.GetByIdAsync(dto.ToolId, ct) 
+                     ?? throw new InvalidOperationException("Tool not found.");
+        var member = await _uow.Members.GetByIdAsync(dto.MemberId, ct) 
+                     ?? throw new InvalidOperationException("Member not found.");
+
+        if (dto.DueAtUtc <= DateTime.UtcNow)
+            throw new ArgumentException("DueAtUtc must be in the future.", nameof(dto));
+
+        // Skapa loan
         var loan = new Loan
         {
-            ToolId = toolId,
-            MemberId = memberId,
+            ToolId = tool.Id,
+            MemberId = member.Id,
             CheckedOutAtUtc = DateTime.UtcNow,
-            DueAtUtc = dueAtUtc,
-            ReservationId = reservationId,
+            DueAtUtc = dto.DueAtUtc,
             Status = LoanStatus.Open
         };
 
-        await _uow.Loans.AddAsync(loan, ct);
-
-        // uppdatera tool-status
-        var tool = await _uow.Tools.GetByIdAsync(toolId, ct);
-        if (tool is not null)
+        // Om en reservation angavs: koppla den via Loan.ReservationId och markera reservationen som Completed
+        if (dto.ReservationId is Guid rid)
         {
-            tool.IsAvailable = false;
-            await _uow.Tools.UpdateAsync(tool, ct);
+            var res = await _uow.Reservations.GetByIdAsync(rid, ct);
+            if (res != null && res.Status == ReservationStatus.Active)
+            {
+                res.Status = ReservationStatus.Completed;
+                await _uow.Reservations.UpdateAsync(res, ct);
+            }
+
+            loan.ReservationId = rid; // FK ägs av Loan
         }
 
+        await _uow.Loans.AddAsync(loan, ct);
         await _uow.SaveChangesAsync(ct);
-        return loan;
+
+        var created = await _uow.Loans.GetByIdAsync(loan.Id, ct);
+        return _mapper.Map<LoanDto>(created!);
     }
 
-    public async Task<bool> ReturnAsync(Guid loanId, DateTime returnedAtUtc, CancellationToken ct = default)
+    public async Task<LoanDto?> ReturnAsync(LoanReturnDto dto, CancellationToken ct = default)
     {
-        var loan = await _uow.Loans.GetByIdAsync(loanId, ct);
-        if (loan is null) return false;
+        var loan = await _uow.Loans.GetByIdAsync(dto.LoanId, ct);
+        if (loan is null) return null;
 
-        loan.ReturnedAtUtc = returnedAtUtc;
-        loan.Status = loan.DueAtUtc < returnedAtUtc ? LoanStatus.Late : LoanStatus.Returned;
+        if (loan.Status == LoanStatus.Returned) return _mapper.Map<LoanDto>(loan);
+
+        loan.ReturnedAtUtc = dto.ReturnedAtUtc;
+        loan.Status = LoanStatus.Returned;
+        loan.Notes = dto.Notes;
+
+        // enkel sen avgift, om försenad
+        if (loan.ReturnedAtUtc.HasValue && loan.ReturnedAtUtc.Value > loan.DueAtUtc)
+        {
+            var daysLate = Math.Ceiling((loan.ReturnedAtUtc.Value - loan.DueAtUtc).TotalDays);
+            loan.LateFee = (decimal)daysLate * 50m; // exempel: 50 kr/dag
+        }
 
         await _uow.Loans.UpdateAsync(loan, ct);
+        await _uow.SaveChangesAsync(ct);
 
-        // sätt tool som tillgängligt igen
-        var tool = await _uow.Tools.GetByIdAsync(loan.ToolId, ct);
-        if (tool is not null)
-        {
-            tool.IsAvailable = true;
-            await _uow.Tools.UpdateAsync(tool, ct);
-        }
-
-        return await _uow.SaveChangesAsync(ct) > 0;
+        var updated = await _uow.Loans.GetByIdAsync(loan.Id, ct);
+        return _mapper.Map<LoanDto>(updated!);
     }
-
-    public Task<IEnumerable<Loan>> GetOverdueAsync(DateTime asOfUtc, CancellationToken ct = default)
-        => _uow.Loans.GetOverdueAsync(asOfUtc, ct);
-
-    public Task<IEnumerable<Loan>> GetOpenByMemberAsync(Guid memberId, CancellationToken ct = default)
-        => _uow.Loans.GetOpenByMemberAsync(memberId, ct);
 }

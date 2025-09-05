@@ -1,5 +1,7 @@
+using AutoMapper;
 using TooliRent.Core.Interfaces;
 using TooliRent.Core.Models;
+using TooliRent.Services.DTOs.Members;
 using TooliRent.Services.Interfaces;
 
 namespace TooliRent.Services.Services;
@@ -7,44 +9,57 @@ namespace TooliRent.Services.Services;
 public class MemberService : IMemberService
 {
     private readonly IUnitOfWork _uow;
-    public MemberService(IUnitOfWork uow) => _uow = uow;
+    private readonly IMapper _mapper;
 
-    public Task<IEnumerable<Member>> GetAllAsync(CancellationToken ct = default)
-        => _uow.Members.GetAllAsync(ct);
-
-    public Task<Member?> GetAsync(Guid id, CancellationToken ct = default)
-        => _uow.Members.GetByIdAsync(id, ct);
-
-    public async Task<Member> CreateAsync(Member member, CancellationToken ct = default)
+    public MemberService(IUnitOfWork uow, IMapper mapper)
     {
-        member.FirstName = (member.FirstName ?? string.Empty).Trim();
-        member.LastName  = (member.LastName  ?? string.Empty).Trim();
-        member.Email     = (member.Email     ?? string.Empty).Trim();
-
-        await _uow.Members.AddAsync(member, ct);
-        await _uow.SaveChangesAsync(ct);
-        return member;
+        _uow = uow;
+        _mapper = mapper;
     }
 
-    public async Task<bool> UpdateAsync(Member member, CancellationToken ct = default)
+    public async Task<IEnumerable<MemberDto>> GetAllAsync(CancellationToken ct = default)
     {
-        var current = await _uow.Members.GetByIdAsync(member.Id, ct);
-        if (current is null) return false;
+        var list = await _uow.Members.GetAllAsync(ct);
+        return _mapper.Map<IEnumerable<MemberDto>>(list);
+    }
 
-        current.FirstName = (member.FirstName ?? string.Empty).Trim();
-        current.LastName  = (member.LastName  ?? string.Empty).Trim();
-        current.Email     = (member.Email     ?? string.Empty).Trim();
+    public async Task<MemberDto?> GetAsync(Guid id, CancellationToken ct = default)
+    {
+        var entity = await _uow.Members.GetByIdAsync(id, ct);
+        return entity is null ? null : _mapper.Map<MemberDto>(entity);
+    }
 
-        await _uow.Members.UpdateAsync(current, ct);
+    public async Task<MemberDto> CreateAsync(MemberCreateDto dto, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(dto.Email))
+            throw new ArgumentException("Email is required.");
+
+        var entity = _mapper.Map<Member>(dto);
+        await _uow.Members.AddAsync(entity, ct);
+        await _uow.SaveChangesAsync(ct);
+
+        return _mapper.Map<MemberDto>(entity);
+    }
+
+    public async Task<bool> UpdateAsync(Guid id, MemberUpdateDto dto, CancellationToken ct = default)
+    {
+        var existing = await _uow.Members.GetByIdAsync(id, ct);
+        if (existing is null) return false;
+
+        _mapper.Map(dto, existing);
+        existing.Id = id;
+
+        await _uow.Members.UpdateAsync(existing, ct);
         return await _uow.SaveChangesAsync(ct) > 0;
     }
 
     public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)
     {
-        var entity = await _uow.Members.GetByIdAsync(id, ct);
-        if (entity is null) return false;
-        entity.DeletedAtUtc = DateTime.UtcNow;
-        await _uow.Members.UpdateAsync(entity, ct);
+        var existing = await _uow.Members.GetByIdAsync(id, ct);
+        if (existing is null) return false;
+
+        existing.DeletedAtUtc = DateTime.UtcNow; // soft
+        await _uow.Members.UpdateAsync(existing, ct);
         return await _uow.SaveChangesAsync(ct) > 0;
     }
 }
