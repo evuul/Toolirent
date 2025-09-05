@@ -1,4 +1,5 @@
 using AutoMapper;
+using TooliRent.Core.Enums;
 using TooliRent.Core.Models;
 using TooliRent.Services.DTOs.ToolCategories;
 using TooliRent.Services.DTOs.Tools;
@@ -66,6 +67,8 @@ public class MappingProfile : Profile
             .ForMember(d => d.IsPaid,     opt => opt.Ignore()) // sätts i service
             .ForMember(d => d.Status,     opt => opt.Ignore()); // sätts i service
 
+        CreateMap<ReservationUpdateDto, Reservation>()
+            .ForMember(d => d.Status, opt => opt.MapFrom(s => (ReservationStatus)s.Status));
         // ----------------- Loan -----------------
         CreateMap<Loan, LoanDto>()
             .ForMember(d => d.ToolName,   opt => opt.MapFrom(s => s.Tool != null ? s.Tool.Name : string.Empty))

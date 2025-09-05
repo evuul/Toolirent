@@ -1,6 +1,8 @@
+using AutoMapper;
 using TooliRent.Core.Enums;
 using TooliRent.Core.Interfaces;
 using TooliRent.Core.Models;
+using TooliRent.Services.DTOs.Reservations;
 using TooliRent.Services.Interfaces;
 
 namespace TooliRent.Services.Services;
@@ -8,37 +10,57 @@ namespace TooliRent.Services.Services;
 public class ReservationService : IReservationService
 {
     private readonly IUnitOfWork _uow;
-    public ReservationService(IUnitOfWork uow) => _uow = uow;
+    private readonly IMapper _mapper;
 
-    public Task<Reservation?> GetAsync(Guid id, CancellationToken ct = default)
-        => _uow.Reservations.GetByIdAsync(id, ct);
-
-    public Task<IEnumerable<Reservation>> GetByMemberAsync(Guid memberId, CancellationToken ct = default)
-        => _uow.Reservations.GetByMemberAsync(memberId, ct);
-
-    public async Task<Reservation> CreateAsync(Reservation reservation, CancellationToken ct = default)
+    public ReservationService(IUnitOfWork uow, IMapper mapper)
     {
-        if (reservation.StartUtc >= reservation.EndUtc)
-            throw new ArgumentException("End must be after Start");
+        _uow = uow;
+        _mapper = mapper;
+    }
 
-        // Finns verktyget?
-        var tool = await _uow.Tools.GetByIdAsync(reservation.ToolId, ct)
-                   ?? throw new InvalidOperationException("Tool not found");
+    public async Task<ReservationDto?> GetAsync(Guid id, CancellationToken ct = default)
+    {
+        var entity = await _uow.Reservations.GetByIdAsync(id, ct);
+        return entity is null ? null : _mapper.Map<ReservationDto>(entity);
+    }
 
-        // Överlapp?
-        var overlap = await _uow.Reservations.HasOverlapAsync(reservation.ToolId, reservation.StartUtc, reservation.EndUtc, ct);
-        if (overlap)
-            throw new InvalidOperationException("Overlapping reservation exists for this tool");
 
-        // Pris (enkel: hela dygn, minst 1)
-        var days = Math.Max(1, (int)Math.Ceiling((reservation.EndUtc - reservation.StartUtc).TotalDays));
-        reservation.TotalPrice = tool.RentalPricePerDay * days;
-        reservation.IsPaid = false;
-        reservation.Status = ReservationStatus.Active;
+    public async Task<IEnumerable<ReservationDto>> GetByMemberAsync(Guid memberId, CancellationToken ct = default)
+    {
+        var list = await _uow.Reservations.GetByMemberAsync(memberId, ct);
+        return _mapper.Map<IEnumerable<ReservationDto>>(list);
+    }
 
-        await _uow.Reservations.AddAsync(reservation, ct);
+    public async Task<ReservationDto> CreateAsync(ReservationCreateDto dto, CancellationToken ct = default)
+    {
+        // 1) Kolla verktyget
+        var tool = await _uow.Tools.GetByIdAsync(dto.ToolId, ct);
+        if (tool is null) throw new InvalidOperationException("Tool not found.");
+        if (!tool.IsAvailable) throw new InvalidOperationException("Tool is not available.");
+
+        // 2) datumvalid
+        if (dto.EndUtc <= dto.StartUtc)
+            throw new ArgumentException("EndUtc must be after StartUtc.");
+
+        // 3) Överlapp mot andra reservationer
+        var overlap = await _uow.Reservations.HasOverlapAsync(dto.ToolId, dto.StartUtc, dto.EndUtc, ct);
+        if (overlap) throw new InvalidOperationException("Tool already reserved in this window.");
+
+        // 4) Pris = antal dagar * pris/dag
+        var days = Math.Max(1, (int)Math.Ceiling((dto.EndUtc - dto.StartUtc).TotalDays));
+        var total = days * tool.RentalPricePerDay;
+
+        var entity = _mapper.Map<Reservation>(dto);
+        entity.TotalPrice = total;
+        entity.IsPaid = false;
+        entity.Status = ReservationStatus.Active;
+
+        await _uow.Reservations.AddAsync(entity, ct);
         await _uow.SaveChangesAsync(ct);
-        return reservation;
+
+        // Ladda om för mappning med namn
+        var created = await _uow.Reservations.GetByIdAsync(entity.Id, ct);
+        return _mapper.Map<ReservationDto>(created!);
     }
 
     public async Task<bool> CancelAsync(Guid id, CancellationToken ct = default)
