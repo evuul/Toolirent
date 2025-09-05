@@ -1,3 +1,4 @@
+using System.Linq;
 using AutoMapper;
 using TooliRent.Core.Interfaces;
 using TooliRent.Core.Models;
@@ -17,16 +18,33 @@ public class ToolCategoryService : IToolCategoryService
         _mapper = mapper;
     }
 
+    // ALLTID med counts manuell mappning för att få med counts (eftersom det är en custom query)
     public async Task<IEnumerable<ToolCategoryDto>> GetAllAsync(CancellationToken ct = default)
     {
-        var items = await _uow.ToolCategories.GetAllAsync(ct);
-        return _mapper.Map<IEnumerable<ToolCategoryDto>>(items);
+        var rows = await _uow.ToolCategories.GetWithCountsAsync(ct);
+        return rows.Select(x => new ToolCategoryDto(
+            x.Category.Id,
+            x.Category.Name,
+            x.Total,
+            x.Available
+        ));
     }
 
+    // ALLTID med counts manuell mappning för att få med counts (eftersom det är en custom query)
     public async Task<ToolCategoryDto?> GetAsync(Guid id, CancellationToken ct = default)
     {
-        var entity = await _uow.ToolCategories.GetByIdAsync(id, ct);
-        return entity is null ? null : _mapper.Map<ToolCategoryDto>(entity);
+        var rows = await _uow.ToolCategories.GetWithCountsAsync(ct);
+        var match = rows.FirstOrDefault(r => r.Category.Id == id);
+
+        if (match.Category is null) 
+            return null;
+
+        return new ToolCategoryDto(
+            match.Category.Id,
+            match.Category.Name,
+            match.Total,
+            match.Available
+        );
     }
 
     public async Task<ToolCategoryDto> CreateAsync(ToolCategoryCreateDto dto, CancellationToken ct = default)
@@ -35,7 +53,6 @@ public class ToolCategoryService : IToolCategoryService
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Category name is required.", nameof(dto));
 
-        // case-insensitive exists
         if (await _uow.ToolCategories.NameExistsAsync(name, excludeId: null, ct))
             throw new InvalidOperationException($"Category '{name}' already exists.");
 
@@ -45,7 +62,11 @@ public class ToolCategoryService : IToolCategoryService
         await _uow.ToolCategories.AddAsync(entity, ct);
         await _uow.SaveChangesAsync(ct);
 
-        return _mapper.Map<ToolCategoryDto>(entity);
+        // hämta counts för den nyskapade
+        var rows = await _uow.ToolCategories.GetWithCountsAsync(ct);
+        var match = rows.First(r => r.Category.Id == entity.Id);
+
+        return new ToolCategoryDto(match.Category.Id, match.Category.Name, match.Total, match.Available);
     }
 
     public async Task<bool> UpdateAsync(Guid id, ToolCategoryUpdateDto dto, CancellationToken ct = default)
@@ -71,8 +92,7 @@ public class ToolCategoryService : IToolCategoryService
         var existing = await _uow.ToolCategories.GetByIdAsync(id, ct);
         if (existing is null) return false;
 
-        // Soft delete
-        existing.DeletedAtUtc = DateTime.UtcNow;
+        existing.DeletedAtUtc = DateTime.UtcNow; // soft delete
         await _uow.ToolCategories.UpdateAsync(existing, ct);
         return await _uow.SaveChangesAsync(ct) > 0;
     }

@@ -12,6 +12,7 @@ using TooliRent.WebAPI.IdentitySeed;
 
 // Repos + UoW
 using TooliRent.Core.Interfaces;
+using TooliRent.Core.Interfaces.Repositories;
 using TooliRent.Infrastructure.Repositories;
 using TooliRent.Infrastructure.UnitOfWork;
 
