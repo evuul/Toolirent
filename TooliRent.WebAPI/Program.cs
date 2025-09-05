@@ -90,6 +90,7 @@ builder.Services.AddScoped<ILoanService, LoanService>();
 // ----------------------------
 // AutoMapper
 // ----------------------------
+// Tom config + pekar på din MappingProfile-typ
 builder.Services.AddAutoMapper(cfg => { }, typeof(MappingProfile));
 
 // ----------------------------
@@ -97,7 +98,7 @@ builder.Services.AddAutoMapper(cfg => { }, typeof(MappingProfile));
 // ----------------------------
 builder.Services.AddControllers();
 
-// Aktivera automatisk model validation och ladda alla validators från Services-assemblyn
+// Automatisk model validation + ladda validators från Services-assemblyn
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssemblyContaining<MappingProfile>();
 
@@ -150,8 +151,12 @@ app.UseAuthorization();
 app.MapControllers();
 
 // ----------------------------
-// Seed Identity (roller + admin/demo)
+// Seeders
 // ----------------------------
+// 1) Seed Identity (roller + admin/demo)
 await IdentityDataSeeder.SeedAsync(app.Services);
+
+// 2) Seed domändata (kategorier, verktyg, medlemmar)
+await TooliRentDataSeeder.SeedAsync(app.Services);
 
 app.Run();
