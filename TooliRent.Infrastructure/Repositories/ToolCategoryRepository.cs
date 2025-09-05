@@ -27,4 +27,10 @@ public class ToolCategoryRepository : Repository<ToolCategory>, IToolCategoryRep
 
         return await query.AnyAsync(c => c.Name.Trim().ToUpper() == normalized, ct);
     }
+    
+    public async Task<ToolCategory?> GetByNameAsync(string name, CancellationToken ct = default)
+    {
+        var n = (name ?? string.Empty).Trim().ToLower();
+        return await _ctx.ToolCategories.FirstOrDefaultAsync(c => c.Name.ToLower() == n, ct);
+    }
 }
