@@ -9,7 +9,7 @@ public class Tool : BaseEntity
 
     // Pris per dag (sätt gärna decimal-precision i EF: decimal(18,2))
     public decimal RentalPricePerDay { get; set; }
-
+     
     // Är verktyget i drift? (separerat från "tillgängligt just nu")
     public bool IsAvailable { get; set; } = true;
 
