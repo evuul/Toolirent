@@ -3,6 +3,7 @@ using TooliRent.Core.Enums;
 using TooliRent.Core.Interfaces;
 using TooliRent.Core.Models;
 using TooliRent.Services.DTOs.Reservations;
+using TooliRent.Services.Exceptions;  // ToolUnavailableException
 using TooliRent.Services.Interfaces;
 
 namespace TooliRent.Services.Services;
@@ -24,7 +25,6 @@ public class ReservationService : IReservationService
         return entity is null ? null : _mapper.Map<ReservationDto>(entity);
     }
 
-
     public async Task<IEnumerable<ReservationDto>> GetByMemberAsync(Guid memberId, CancellationToken ct = default)
     {
         var list = await _uow.Reservations.GetByMemberAsync(memberId, ct);
@@ -33,20 +33,25 @@ public class ReservationService : IReservationService
 
     public async Task<ReservationDto> CreateAsync(ReservationCreateDto dto, CancellationToken ct = default)
     {
-        // 1) Kolla verktyget
+        // 1) Hämta verktyget
         var tool = await _uow.Tools.GetByIdAsync(dto.ToolId, ct);
-        if (tool is null) throw new InvalidOperationException("Tool not found.");
-        if (!tool.IsAvailable) throw new InvalidOperationException("Tool is not available.");
+        if (tool is null)
+            throw new InvalidOperationException("Tool not found.");
 
-        // 2) datumvalid
+        // 2) Grundvalidering av datum
         if (dto.EndUtc <= dto.StartUtc)
-            throw new ArgumentException("EndUtc must be after StartUtc.");
+            throw new ArgumentException("EndUtc måste vara efter StartUtc.");
+        
+        // 3) Snabb flagg-koll (t.ex. trasigt/ur bruk)
+        if (!tool.IsAvailable)
+            throw new ToolUnavailableException("Verktyget är markerat som otillgängligt.");
 
-        // 3) Överlapp mot andra reservationer
-        var overlap = await _uow.Reservations.HasOverlapAsync(dto.ToolId, dto.StartUtc, dto.EndUtc, ct);
-        if (overlap) throw new InvalidOperationException("Tool already reserved in this window.");
+        // 4) Central koll av fönstertillgänglighet (täcker både andra reservationer och pågående lån)
+        var isFree = await _uow.Tools.IsAvailableInWindowAsync(dto.ToolId, dto.StartUtc, dto.EndUtc, ct);
+        if (!isFree)
+            throw new ToolUnavailableException("Verktyget är inte tillgängligt i valt tidsintervall.");
 
-        // 4) Pris = antal dagar * pris/dag
+        // 5) Prisberäkning: antal hela dagar (minst 1) * pris/dag
         var days = Math.Max(1, (int)Math.Ceiling((dto.EndUtc - dto.StartUtc).TotalDays));
         var total = days * tool.RentalPricePerDay;
 
@@ -58,7 +63,7 @@ public class ReservationService : IReservationService
         await _uow.Reservations.AddAsync(entity, ct);
         await _uow.SaveChangesAsync(ct);
 
-        // Ladda om för mappning med namn
+        // 6) Ladda om för att mappa med navigationer/namn
         var created = await _uow.Reservations.GetByIdAsync(entity.Id, ct);
         return _mapper.Map<ReservationDto>(created!);
     }
@@ -80,6 +85,7 @@ public class ReservationService : IReservationService
         if (res is null) return false;
 
         res.Status = ReservationStatus.Completed;
+        // (valfritt) koppla loanId till res om du vill spara spårning
         await _uow.Reservations.UpdateAsync(res, ct);
         return await _uow.SaveChangesAsync(ct) > 0;
     }

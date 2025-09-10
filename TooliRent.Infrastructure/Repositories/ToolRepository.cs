@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TooliRent.Core.Enums;
 using TooliRent.Core.Interfaces;
 using TooliRent.Core.Models;
 using TooliRent.Infrastructure.Data;
@@ -11,15 +12,16 @@ public class ToolRepository : Repository<Tool>, IToolRepository
 
     public ToolRepository(TooliRentDbContext db) : base(db) => _db = db;
 
-    public override async Task<Tool?> GetByIdAsync(Guid id, CancellationToken ct = default)
-        => await _db.Tools
+    public override async Task<Tool?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
+        await _db.Tools
             .Include(t => t.Category)
             .FirstOrDefaultAsync(t => t.Id == id, ct);
 
-    public async Task<IEnumerable<Tool>> GetByCategoryAsync(Guid categoryId, CancellationToken ct = default)
-        => await _db.Tools.AsNoTracking()
-            .Where(t => t.CategoryId == categoryId)
+    public async Task<IEnumerable<Tool>> GetByCategoryAsync(Guid categoryId, CancellationToken ct = default) =>
+        await _db.Tools.AsNoTracking()
+            .Where(t => t.CategoryId == categoryId && t.DeletedAtUtc == null)
             .Include(t => t.Category)
+            .OrderBy(t => t.Name)
             .ToListAsync(ct);
 
     public async Task<(IEnumerable<Tool> Items, int TotalCount)> SearchAsync(
@@ -61,32 +63,85 @@ public class ToolRepository : Repository<Tool>, IToolRepository
         return (items, total);
     }
 
+    /// <summary>
+    /// Hämtar alla verktyg som är tillgängliga i intervallet [fromUtc, toUtc).
+    /// Villkor:
+    ///  - Tool.IsAvailable = true
+    ///  - Ingen aktiv reservation överlappar
+    ///  - Inget öppet (eller ej återlämnat) lån överlappar
+    /// </summary>
     public async Task<IEnumerable<Tool>> GetAvailableInWindowAsync(
         DateTime fromUtc,
         DateTime toUtc,
         CancellationToken ct = default)
     {
-        // Tillgängligt om:
-        // - Tool är markerat som IsAvailable
-        // - INGA aktiva reservationer överlappar fönstret
-        // - INGA öppna lån överlappar fönstret
-        var q = _db.Tools.AsNoTracking()
-            .Where(t => t.IsAvailable && t.DeletedAtUtc == null);
+        // Säkerhetsnät (låter även SQL kortsluta bra)
+        if (toUtc <= fromUtc)
+            return Enumerable.Empty<Tool>();
+
+        var q = _db.Tools
+            .AsNoTracking()
+            .Where(t => t.DeletedAtUtc == null && t.IsAvailable);
 
         q = q.Where(t =>
+            // INGA aktiva reservationer som överlappar
             !_db.Reservations.Any(r =>
                 r.ToolId == t.Id &&
-                r.Status == Core.Enums.ReservationStatus.Active &&
+                r.Status == ReservationStatus.Active &&
                 r.StartUtc < toUtc &&
                 r.EndUtc   > fromUtc)
             &&
+            // INGA lån som överlappar (öppna, eller ej återlämnade)
             !_db.Loans.Any(l =>
                 l.ToolId == t.Id &&
-                l.Status == Core.Enums.LoanStatus.Open &&
+                (l.Status == LoanStatus.Open || l.ReturnedAtUtc == null) &&
                 l.CheckedOutAtUtc < toUtc &&
-                (l.ReturnedAtUtc == null || l.ReturnedAtUtc > fromUtc))
+                ((l.ReturnedAtUtc ?? l.DueAtUtc) > fromUtc))
         );
 
-        return await q.Include(t => t.Category).ToListAsync(ct);
+        return await q
+            .Include(t => t.Category)
+            .OrderBy(t => t.Name)
+            .ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// Snabb ja/nej-koll om ett visst verktyg är tillgängligt i intervallet [fromUtc, toUtc).
+    /// (Valfritt att använda – bra för validering i t.ex. ReservationService)
+    /// </summary>
+    public async Task<bool> IsAvailableInWindowAsync(
+        Guid toolId,
+        DateTime fromUtc,
+        DateTime toUtc,
+        CancellationToken ct = default)
+    {
+        if (toUtc <= fromUtc) return false;
+
+        // Börja med verktyget måste finnas och vara IsAvailable
+        var baseOk = await _db.Tools
+            .AsNoTracking()
+            .AnyAsync(t => t.Id == toolId && t.DeletedAtUtc == null && t.IsAvailable, ct);
+
+        if (!baseOk) return false;
+
+        var hasReservationOverlap = await _db.Reservations
+            .AsNoTracking()
+            .AnyAsync(r =>
+                r.ToolId == toolId &&
+                r.Status == ReservationStatus.Active &&
+                r.StartUtc < toUtc &&
+                r.EndUtc   > fromUtc, ct);
+
+        if (hasReservationOverlap) return false;
+
+        var hasLoanOverlap = await _db.Loans
+            .AsNoTracking()
+            .AnyAsync(l =>
+                l.ToolId == toolId &&
+                (l.Status == LoanStatus.Open || l.ReturnedAtUtc == null) &&
+                l.CheckedOutAtUtc < toUtc &&
+                ((l.ReturnedAtUtc ?? l.DueAtUtc) > fromUtc), ct);
+
+        return !hasLoanOverlap;
     }
 }

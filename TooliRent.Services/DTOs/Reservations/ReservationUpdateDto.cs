@@ -1,6 +1,9 @@
-public record ReservationUpdateDto(
-    DateTime StartUtc,
-    DateTime EndUtc,
-    bool IsPaid,
-    int Status // skickas som int, vi mappar till enum i service
-);
+namespace TooliRent.Services.DTOs.Reservations;
+
+public record ReservationUpdateDto
+{
+    public DateTime StartUtc { get; init; }
+    public DateTime EndUtc { get; init; }
+    public bool IsPaid { get; init; }
+    public int Status { get; init; }
+}
