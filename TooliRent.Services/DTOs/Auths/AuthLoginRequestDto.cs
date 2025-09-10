@@ -1,6 +1,6 @@
 namespace TooliRent.Services.DTOs.Auths;
 
-public record AuthLoginRequest(
+public record AuthLoginRequestDto(
     string Email,
     string Password
 );

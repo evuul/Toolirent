@@ -8,6 +8,7 @@ using System.Security.Claims;
 using System.Text;
 using TooliRent.Infrastructure.Data;
 using TooliRent.Core.Models;
+using TooliRent.Services.DTOs.Auths; // <-- viktigt
 
 namespace TooliRent.WebAPI.Controllers;
 
@@ -26,18 +27,17 @@ public class AuthController : ControllerBase
         _db = db;
     }
 
-    // -------- LOGIN --------
     [HttpPost("login")]
     [AllowAnonymous]
-    public async Task<IActionResult> Login([FromBody] LoginDto dto, CancellationToken ct)
+    public async Task<IActionResult> Login([FromBody] AuthLoginRequestDto dto, CancellationToken ct)
     {
+        // Med [ApiController] returneras 400 automatiskt vid valideringsfel (FluentValidation)
         var user = await _userMgr.FindByEmailAsync(dto.Email);
         if (user is null) return Unauthorized("Invalid login attempt.");
 
         var ok = await _userMgr.CheckPasswordAsync(user, dto.Password);
         if (!ok) return Unauthorized("Invalid login attempt.");
 
-        // hämta ev. kopplad Member
         var member = await _db.Members.AsNoTracking()
             .FirstOrDefaultAsync(m => m.IdentityUserId == user.Id, ct);
 
@@ -45,12 +45,11 @@ public class AuthController : ControllerBase
         return Ok(new { token = token.jwt, expires = token.expires });
     }
 
-    // -------- REGISTER --------
     [HttpPost("register")]
     [AllowAnonymous]
-    public async Task<IActionResult> Register([FromBody] RegisterDto dto, CancellationToken ct)
+    public async Task<IActionResult> Register([FromBody] AuthRegisterRequestDto dto, CancellationToken ct)
     {
-        // enkel koll
+        // 400 kommer automatiskt om dto är ogiltig enligt validatorn
         var existing = await _userMgr.FindByEmailAsync(dto.Email);
         if (existing != null) return BadRequest(new { message = "Email är redan registrerad." });
 
@@ -65,14 +64,12 @@ public class AuthController : ControllerBase
         if (!create.Succeeded)
             return BadRequest(new { errors = create.Errors.Select(e => e.Description) });
 
-        // Lägg i Member-roll om den finns
         await _userMgr.AddToRoleAsync(user, "Member");
 
-        // Skapa domänmedlem
         var member = new Member
         {
-            FirstName      = (dto.FirstName ?? string.Empty).Trim(),
-            LastName       = (dto.LastName  ?? string.Empty).Trim(),
+            FirstName      = dto.FirstName.Trim(),
+            LastName       = dto.LastName.Trim(),
             Email          = dto.Email.Trim(),
             IdentityUserId = user.Id,
             CreatedAtUtc   = DateTime.UtcNow
@@ -84,7 +81,6 @@ public class AuthController : ControllerBase
         return Ok(new { token = token.jwt, expires = token.expires });
     }
 
-    // -------- ME (valfritt men smidigt) --------
     [HttpGet("me")]
     [Authorize]
     public async Task<IActionResult> Me(CancellationToken ct)
@@ -109,7 +105,6 @@ public class AuthController : ControllerBase
         });
     }
 
-    // -------- Helpers --------
     private async Task<(string jwt, DateTime expires)> GenerateJwtAsync(IdentityUser user, Guid? memberId)
     {
         var roles = await _userMgr.GetRolesAsync(user);
@@ -143,13 +138,3 @@ public class AuthController : ControllerBase
         return (new JwtSecurityTokenHandler().WriteToken(token), expires);
     }
 }
-
-// ---------- DTOs ----------
-public record LoginDto(string Email, string Password);
-
-public record RegisterDto(
-    string Email,
-    string Password,
-    string FirstName,
-    string LastName
-);
