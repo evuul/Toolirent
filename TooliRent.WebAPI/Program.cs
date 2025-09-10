@@ -9,6 +9,7 @@ using Microsoft.IdentityModel.Tokens;
 using TooliRent.Infrastructure.Auth;
 using TooliRent.Infrastructure.Data;
 using TooliRent.WebAPI.IdentitySeed;
+using TooliRent.WebAPI.Middlewares;          // <-- lägg till middleware-namespace
 
 // Repos + UoW
 using TooliRent.Core.Interfaces;
@@ -19,7 +20,7 @@ using TooliRent.Infrastructure.UnitOfWork;
 // Services
 using TooliRent.Services.Interfaces;
 using TooliRent.Services.Services;
-using TooliRent.Services.Mapping; // MappingProfile
+using TooliRent.Services.Mapping;            // MappingProfile
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -91,7 +92,6 @@ builder.Services.AddScoped<ILoanService, LoanService>();
 // ----------------------------
 // AutoMapper
 // ----------------------------
-// Tom config + pekar på din MappingProfile-typ
 builder.Services.AddAutoMapper(cfg => { }, typeof(MappingProfile));
 
 // ----------------------------
@@ -99,7 +99,7 @@ builder.Services.AddAutoMapper(cfg => { }, typeof(MappingProfile));
 // ----------------------------
 builder.Services.AddControllers();
 
-// Automatisk model validation + ladda validators från Services-assemblyn
+// Ladda validators från Services-assemblyn (där dina validators ligger)
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssemblyContaining<MappingProfile>();
 
@@ -144,6 +144,9 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+// Global error handler: översätter t.ex. ToolUnavailableException -> 409, valideringsfel -> 400, etc.
+app.UseMiddleware<ExceptionHandlingMiddleware>();
+
 app.UseHttpsRedirection();
 
 app.UseAuthentication();
@@ -157,7 +160,7 @@ app.MapControllers();
 // 1) Seed Identity (roller + admin/demo)
 await IdentityDataSeeder.SeedAsync(app.Services);
 
-// 2) Seed domändata (kategorier, verktyg, medlemmar)
+// 2) Seed domändata (kategorier, verktyg, m.m. – om du använder din seeder)
 await TooliRentDataSeeder.SeedAsync(app.Services);
 
 app.Run();
