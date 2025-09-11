@@ -96,6 +96,12 @@ public class MappingProfile : Profile
                     : string.Empty))
             .ForMember(d => d.Status, o => o.MapFrom(s => (int)s.Status));
         // Obs: Checkout-mappning sker i service (vi skapar Loan manuellt där)
+        
+        CreateMap<Loan, LoanOverviewDto>()
+            .ForMember(d => d.ToolName, opt => opt.MapFrom(s => s.Tool != null ? s.Tool.Name : string.Empty))
+            .ForMember(d => d.Status, opt => opt.MapFrom(s => (int)s.Status));
+        
+        CreateMap<LoanDto, LoanOverviewDto>();
 
         // =========================
         // Admin / Statistik
