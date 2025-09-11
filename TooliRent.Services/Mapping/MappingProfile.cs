@@ -15,71 +15,91 @@ public class MappingProfile : Profile
 {
     public MappingProfile()
     {
-        // ----------------- ToolCategory -----------------
+        // =========================
+        // ToolCategory
+        // =========================
         CreateMap<ToolCategory, ToolCategoryDto>();
 
         CreateMap<ToolCategoryCreateDto, ToolCategory>()
-            .ForMember(d => d.Id, opt => opt.Ignore())
-            .ForMember(d => d.Name, opt => opt.MapFrom(s => (s.Name ?? string.Empty).Trim()));
+            .ForMember(d => d.Id,   o => o.Ignore())
+            .ForMember(d => d.Name, o => o.MapFrom(s => (s.Name ?? string.Empty).Trim()));
 
         CreateMap<ToolCategoryUpdateDto, ToolCategory>()
-            .ForMember(d => d.Id, opt => opt.Ignore())
-            .ForMember(d => d.Name, opt => opt.MapFrom(s => (s.Name ?? string.Empty).Trim()));
+            .ForMember(d => d.Id,   o => o.Ignore())
+            .ForMember(d => d.Name, o => o.MapFrom(s => (s.Name ?? string.Empty).Trim()));
 
-        // ----------------- Tool -----------------
+        // =========================
+        // Tool
+        // =========================
         CreateMap<Tool, ToolDto>()
-            .ForMember(d => d.CategoryName, opt => opt.MapFrom(s => s.Category != null ? s.Category.Name : string.Empty));
+            .ForMember(d => d.CategoryName,
+                o => o.MapFrom(s => s.Category != null ? s.Category.Name : string.Empty));
 
         CreateMap<ToolCreateDto, Tool>()
-            .ForMember(d => d.Id, opt => opt.Ignore())
-            .ForMember(d => d.Name, opt => opt.MapFrom(s => (s.Name ?? string.Empty).Trim()))
-            .ForMember(d => d.Description, opt => opt.MapFrom(s => (s.Description ?? string.Empty).Trim()))
-            .ForMember(d => d.IsAvailable, opt => opt.MapFrom(_ => true)); // ny-skapade tools är tillgängliga
+            .ForMember(d => d.Id,          o => o.Ignore())
+            .ForMember(d => d.Name,        o => o.MapFrom(s => (s.Name ?? string.Empty).Trim()))
+            .ForMember(d => d.Description, o => o.MapFrom(s => (s.Description ?? string.Empty).Trim()))
+            .ForMember(d => d.IsAvailable, o => o.MapFrom(_ => true)); // nya tools = tillgängliga
 
         CreateMap<ToolUpdateDto, Tool>()
-            .ForMember(d => d.Id, opt => opt.Ignore())
-            .ForMember(d => d.Name, opt => opt.MapFrom(s => (s.Name ?? string.Empty).Trim()))
-            .ForMember(d => d.Description, opt => opt.MapFrom(s => (s.Description ?? string.Empty).Trim()));
+            .ForMember(d => d.Id,          o => o.Ignore())
+            .ForMember(d => d.Name,        o => o.MapFrom(s => (s.Name ?? string.Empty).Trim()))
+            .ForMember(d => d.Description, o => o.MapFrom(s => (s.Description ?? string.Empty).Trim()));
 
-        // ----------------- Member -----------------
+        // =========================
+        // Member
+        // =========================
         CreateMap<Member, MemberDto>();
 
         CreateMap<MemberCreateDto, Member>()
-            .ForMember(d => d.Id, opt => opt.Ignore())
-            .ForMember(d => d.FirstName, opt => opt.MapFrom(s => (s.FirstName ?? string.Empty).Trim()))
-            .ForMember(d => d.LastName,  opt => opt.MapFrom(s => (s.LastName  ?? string.Empty).Trim()))
-            .ForMember(d => d.Email,     opt => opt.MapFrom(s => (s.Email     ?? string.Empty).Trim()));
+            .ForMember(d => d.Id,        o => o.Ignore())
+            .ForMember(d => d.FirstName, o => o.MapFrom(s => (s.FirstName ?? string.Empty).Trim()))
+            .ForMember(d => d.LastName,  o => o.MapFrom(s => (s.LastName  ?? string.Empty).Trim()))
+            .ForMember(d => d.Email,     o => o.MapFrom(s => (s.Email     ?? string.Empty).Trim()));
 
         CreateMap<MemberUpdateDto, Member>()
-            .ForMember(d => d.Id, opt => opt.Ignore())
-            .ForMember(d => d.FirstName, opt => opt.MapFrom(s => (s.FirstName ?? string.Empty).Trim()))
-            .ForMember(d => d.LastName,  opt => opt.MapFrom(s => (s.LastName  ?? string.Empty).Trim()))
-            .ForMember(d => d.Email,     opt => opt.MapFrom(s => (s.Email     ?? string.Empty).Trim()));
+            .ForMember(d => d.Id,        o => o.Ignore())
+            .ForMember(d => d.FirstName, o => o.MapFrom(s => (s.FirstName ?? string.Empty).Trim()))
+            .ForMember(d => d.LastName,  o => o.MapFrom(s => (s.LastName  ?? string.Empty).Trim()))
+            .ForMember(d => d.Email,     o => o.MapFrom(s => (s.Email     ?? string.Empty).Trim()));
 
-        // ----------------- Reservation -----------------
+        // =========================
+        // Reservation
+        // =========================
         CreateMap<Reservation, ReservationDto>()
-            .ForMember(d => d.ToolName,   opt => opt.MapFrom(s => s.Tool != null ? s.Tool.Name : string.Empty))
-            .ForMember(d => d.MemberName, opt => opt.MapFrom(s =>
-                (s.Member != null ? (s.Member.FirstName + " " + s.Member.LastName).Trim() : string.Empty)))
-            .ForMember(d => d.Status,     opt => opt.MapFrom(s => (int)s.Status));
+            .ForMember(d => d.ToolName,
+                o => o.MapFrom(s => s.Tool != null ? s.Tool.Name : string.Empty))
+            .ForMember(d => d.MemberName,
+                o => o.MapFrom(s => s.Member != null
+                    ? $"{(s.Member.FirstName ?? string.Empty).Trim()} {(s.Member.LastName ?? string.Empty).Trim()}".Trim()
+                    : string.Empty))
+            .ForMember(d => d.Status, o => o.MapFrom(s => (int)s.Status));
 
         CreateMap<ReservationCreateDto, Reservation>()
-            .ForMember(d => d.Id,         opt => opt.Ignore())
-            .ForMember(d => d.TotalPrice, opt => opt.Ignore()) // sätts i service
-            .ForMember(d => d.IsPaid,     opt => opt.Ignore()) // sätts i service
-            .ForMember(d => d.Status,     opt => opt.Ignore()); // sätts i service
+            .ForMember(d => d.Id,         o => o.Ignore())
+            .ForMember(d => d.TotalPrice, o => o.Ignore()) // beräknas i service
+            .ForMember(d => d.IsPaid,     o => o.Ignore()) // sätts i service
+            .ForMember(d => d.Status,     o => o.Ignore()); // sätts i service
 
         CreateMap<ReservationUpdateDto, Reservation>()
-            .ForMember(d => d.Status, opt => opt.MapFrom(s => (ReservationStatus)s.Status));
-        // ----------------- Loan -----------------
+            .ForMember(d => d.Status, o => o.MapFrom(s => (ReservationStatus)s.Status));
+
+        // =========================
+        // Loan
+        // =========================
         CreateMap<Loan, LoanDto>()
-            .ForMember(d => d.ToolName,   opt => opt.MapFrom(s => s.Tool != null ? s.Tool.Name : string.Empty))
-            .ForMember(d => d.MemberName, opt => opt.MapFrom(s =>
-                (s.Member != null ? (s.Member.FirstName + " " + s.Member.LastName).Trim() : string.Empty)))
-            .ForMember(d => d.Status,     opt => opt.MapFrom(s => (int)s.Status));
-        // CheckoutDto mappas i service, inte direkt
-        
-        // ----------------- Admin / Statistik -----------------
+            .ForMember(d => d.ToolName,
+                o => o.MapFrom(s => s.Tool != null ? s.Tool.Name : string.Empty))
+            .ForMember(d => d.MemberName,
+                o => o.MapFrom(s => s.Member != null
+                    ? $"{(s.Member.FirstName ?? string.Empty).Trim()} {(s.Member.LastName ?? string.Empty).Trim()}".Trim()
+                    : string.Empty))
+            .ForMember(d => d.Status, o => o.MapFrom(s => (int)s.Status));
+        // Obs: Checkout-mappning sker i service (vi skapar Loan manuellt där)
+
+        // =========================
+        // Admin / Statistik
+        // =========================
         CreateMap<AdminStatsResult, AdminStatsDto>();
         CreateMap<TopToolItem, TopToolDto>();
         CreateMap<CategoryUtilizationItem, CategoryUtilizationDto>();
