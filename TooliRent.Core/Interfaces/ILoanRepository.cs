@@ -1,5 +1,6 @@
 using TooliRent.Core.Enums;
 using TooliRent.Core.Models;
+using TooliRent.Core.Models.Admin;
 
 namespace TooliRent.Core.Interfaces;
 
@@ -20,4 +21,6 @@ public interface ILoanRepository : IRepository<Loan>
         int page,
         int pageSize,
         CancellationToken ct = default);
+    Task<AdminStatsResult> GetAdminStatsAsync(
+        DateTime? fromUtc, DateTime? toUtc, CancellationToken ct = default);
 }

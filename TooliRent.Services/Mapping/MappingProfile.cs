@@ -1,6 +1,8 @@
 using AutoMapper;
 using TooliRent.Core.Enums;
 using TooliRent.Core.Models;
+using TooliRent.Core.Models.Admin;
+using TooliRent.Services.DTOs.Admins;
 using TooliRent.Services.DTOs.ToolCategories;
 using TooliRent.Services.DTOs.Tools;
 using TooliRent.Services.DTOs.Members;
@@ -76,5 +78,11 @@ public class MappingProfile : Profile
                 (s.Member != null ? (s.Member.FirstName + " " + s.Member.LastName).Trim() : string.Empty)))
             .ForMember(d => d.Status,     opt => opt.MapFrom(s => (int)s.Status));
         // CheckoutDto mappas i service, inte direkt
+        
+        // ----------------- Admin / Statistik -----------------
+        CreateMap<AdminStatsResult, AdminStatsDto>();
+        CreateMap<TopToolItem, TopToolDto>();
+        CreateMap<CategoryUtilizationItem, CategoryUtilizationDto>();
+        CreateMap<MemberActivityItem, MemberActivityDto>();
     }
 }

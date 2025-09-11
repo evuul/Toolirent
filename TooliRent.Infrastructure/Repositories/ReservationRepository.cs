@@ -43,4 +43,28 @@ public class ReservationRepository : Repository<Reservation>, IReservationReposi
         reservation.Status = ReservationStatus.Cancelled;
         await UpdateAsync(reservation, ct);
     }
+    
+    public async Task<(IEnumerable<Reservation> Items, int Total)> AdminSearchAsync(
+        DateTime? fromUtc, DateTime? toUtc, string? status, int page, int pageSize, CancellationToken ct = default)
+    {
+        if (page <= 0) page = 1; if (pageSize <= 0) pageSize = 20;
+
+        var q = _db.Reservations.AsNoTracking()
+            .Include(r => r.Tool).ThenInclude(t => t.Category)
+            .Include(r => r.Member)
+            .Where(r => r.DeletedAtUtc == null);
+
+        if (fromUtc.HasValue) q = q.Where(r => r.StartUtc >= fromUtc.Value);
+        if (toUtc.HasValue)   q = q.Where(r => r.StartUtc <  toUtc.Value);
+        if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<ReservationStatus>(status, true, out var s))
+            q = q.Where(r => r.Status == s);
+
+        var total = await q.CountAsync(ct);
+        var items = await q.OrderByDescending(r => r.StartUtc)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(ct);
+
+        return (items, total);
+    }
 }
