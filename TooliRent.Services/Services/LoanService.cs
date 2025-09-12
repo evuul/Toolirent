@@ -53,7 +53,7 @@ namespace TooliRent.Services.Services
             if (!tool.IsAvailable)
                 throw new ToolUnavailableException("Verktyget är markerat som otillgängligt.");
 
-            // 4) Fönsterkoll: verktyget måste vara ledigt (inget annat lån/reservation som krockar)
+            // 4) Fönsterkoll: verktyget måste vara ledigt (ingen annan reservation/lån som krockar)
             var free = await _uow.Tools.IsAvailableInWindowAsync(tool.Id, checkoutAt, dto.DueAtUtc, ct);
             if (!free)
                 throw new ToolUnavailableException("Verktyget är inte tillgängligt i valt tidsintervall.");
@@ -77,64 +77,64 @@ namespace TooliRent.Services.Services
 
         // ----------------------------
         // Utlåning baserat på en reservation
-        // - Klienten skickar bara ReservationId (DueAtUtc är valfritt)
+        // - Klienten skickar bara ReservationId
         // - CheckedOutAtUtc sätts ALLTID på servern
+        // - Reservationen arkiveras (Status = Completed), ingen soft delete
         // ----------------------------
         public async Task<LoanDto> CheckoutFromReservationAsync(LoanCheckoutFromReservationDto dto, CancellationToken ct = default)
-{
-    // 1) Hämta reservationen
-    var res = await _uow.Reservations.GetByIdAsync(dto.ReservationId, ct)
-              ?? throw new InvalidOperationException("Reservation not found.");
-    if (res.Status != ReservationStatus.Active)
-        throw new InvalidOperationException("Reservation is not active.");
+        {
+            // 1) Hämta reservationen
+            var res = await _uow.Reservations.GetByIdAsync(dto.ReservationId, ct)
+                      ?? throw new InvalidOperationException("Reservation not found.");
+            if (res.Status != ReservationStatus.Active)
+                throw new InvalidOperationException("Reservation is not active.");
 
-    // 2) Hämta verktyg och medlem
-    var tool = await _uow.Tools.GetByIdAsync(res.ToolId, ct)
-               ?? throw new InvalidOperationException("Tool not found.");
-    var member = await _uow.Members.GetByIdAsync(res.MemberId, ct)
-                 ?? throw new InvalidOperationException("Member not found.");
+            // 2) Hämta verktyg och medlem
+            var tool = await _uow.Tools.GetByIdAsync(res.ToolId, ct)
+                       ?? throw new InvalidOperationException("Tool not found.");
+            var member = await _uow.Members.GetByIdAsync(res.MemberId, ct)
+                         ?? throw new InvalidOperationException("Member not found.");
 
-    // 3) Tillåt checkout ENDAST inom reservationsfönstret
-    var now = DateTime.UtcNow;
-    if (now < res.StartUtc)
-        throw new InvalidOperationException($"Du kan checka ut tidigast {res.StartUtc:yyyy-MM-dd HH:mm} UTC.");
-    if (now >= res.EndUtc)
-        throw new InvalidOperationException("Reservationen har redan passerat sitt slut.");
+            // 3) Checka ut endast inom reservationsfönstret
+            var now = DateTime.UtcNow;
+            if (now < res.StartUtc)
+                throw new InvalidOperationException($"Du kan checka ut tidigast {res.StartUtc:yyyy-MM-dd HH:mm} UTC.");
+            if (now >= res.EndUtc)
+                throw new InvalidOperationException("Reservationen har redan passerat sitt slut.");
 
-    // 4) Kolla om verktyget är utlånat just nu (krock med öppet lån)
-    var loanConflict = await _uow.Loans.ToolIsLoanedNowAsync(res.ToolId, ct);
-    if (loanConflict)
-        throw new InvalidOperationException("Verktyget är redan utlånat just nu.");
+            // 4) Kolla om verktyget är utlånat just nu (krock med öppet lån)
+            var loanConflict = await _uow.Loans.ToolIsLoanedNowAsync(res.ToolId, ct);
+            if (loanConflict)
+                throw new InvalidOperationException("Verktyget är redan utlånat just nu.");
 
-    // 5) Sätt lånetider: från nu till reservationens slut (du kan förstås begränsa med maxlängd om du vill)
-    var checkoutAt = now;
-    var dueAt      = res.EndUtc; // eller t.ex. min(res.EndUtc, now.AddDays(7)) beroende på policy
-    // sanity
-    if (dueAt <= checkoutAt)
-        throw new InvalidOperationException("Reservationens sluttid måste vara i framtiden.");
+            // 5) Bestäm lånetider: från nu till reservationens slut
+            var checkoutAt = now;
+            var dueAt = res.EndUtc;
+            if (dueAt <= checkoutAt)
+                throw new InvalidOperationException("Reservationens sluttid måste vara i framtiden.");
 
-    // 6) Skapa lånet
-    var loan = new Loan
-    {
-        ToolId = tool.Id,
-        MemberId = member.Id,
-        ReservationId = res.Id,
-        CheckedOutAtUtc = checkoutAt,
-        DueAtUtc = dueAt,
-        Status = LoanStatus.Open
-    };
+            // 6) Skapa lånet
+            var loan = new Loan
+            {
+                ToolId = tool.Id,
+                MemberId = member.Id,
+                ReservationId = res.Id,
+                CheckedOutAtUtc = checkoutAt,
+                DueAtUtc = dueAt,
+                Status = LoanStatus.Open
+            };
 
-    // 7) Markera reservationen som Completed
-    res.Status = ReservationStatus.Completed;
-    await _uow.Reservations.UpdateAsync(res, ct);
+            // 7) Arkivera reservationen (behåll i historik)
+            res.Status = ReservationStatus.Completed;
+            await _uow.Reservations.UpdateAsync(res, ct);
 
-    // 8) Spara
-    await _uow.Loans.AddAsync(loan, ct);
-    await _uow.SaveChangesAsync(ct);
+            // 8) Spara
+            await _uow.Loans.AddAsync(loan, ct);
+            await _uow.SaveChangesAsync(ct);
 
-    var created = await _uow.Loans.GetByIdAsync(loan.Id, ct);
-    return _mapper.Map<LoanDto>(created!);
-}
+            var created = await _uow.Loans.GetByIdAsync(loan.Id, ct);
+            return _mapper.Map<LoanDto>(created!);
+        }
 
         // ----------------------------
         // Återlämna ett lån
