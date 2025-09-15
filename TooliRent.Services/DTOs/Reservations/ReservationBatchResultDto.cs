@@ -5,5 +5,5 @@ public record ReservationBatchResultDto(
     Guid MemberId,
     DateTime StartUtc,
     DateTime EndUtc,
-    IReadOnlyList<ReservationBatchItemResultDto> Items
+    IEnumerable<ReservationDto> Reservations
 );

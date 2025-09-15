@@ -26,4 +26,12 @@ public interface IToolRepository : IRepository<Tool>
         DateTime fromUtc,
         DateTime toUtc,
         CancellationToken ct = default);
+    
+    Task<bool> IsAvailableInWindowIgnoringAsync(
+        Guid toolId,
+        DateTime fromUtc,
+        DateTime toUtc,
+        Guid? ignoreReservationId = null,
+        Guid? ignoreLoanId = null,
+        CancellationToken ct = default);
 }

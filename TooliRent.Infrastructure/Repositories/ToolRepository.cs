@@ -144,4 +144,42 @@ public class ToolRepository : Repository<Tool>, IToolRepository
 
         return !hasLoanOverlap;
     }
+    
+    public async Task<bool> IsAvailableInWindowIgnoringAsync(
+        Guid toolId,
+        DateTime fromUtc,
+        DateTime toUtc,
+        Guid? ignoreReservationId = null,
+        Guid? ignoreLoanId = null,
+        CancellationToken ct = default)
+    {
+        // Verktyget måste finnas och vara markerat som tillgängligt (ej soft-deletat)
+        var tool = await _db.Tools
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Id == toolId && t.DeletedAtUtc == null, ct);
+
+        if (tool is null || !tool.IsAvailable) return false;
+
+        // Finns någon ANNAN aktiv reservation som krockar?
+        var reservationOverlap = await _db.Reservations.AsNoTracking().AnyAsync(r =>
+                r.ToolId == toolId &&
+                r.Status == Core.Enums.ReservationStatus.Active &&
+                r.StartUtc < toUtc &&
+                r.EndUtc > fromUtc &&
+                (ignoreReservationId == null || r.Id != ignoreReservationId),
+            ct);
+
+        if (reservationOverlap) return false;
+
+        // Finns något ANNAT öppet lån som krockar?
+        var loanOverlap = await _db.Loans.AsNoTracking().AnyAsync(l =>
+                l.ToolId == toolId &&
+                l.Status == Core.Enums.LoanStatus.Open &&
+                l.CheckedOutAtUtc < toUtc &&
+                (l.ReturnedAtUtc == null || l.ReturnedAtUtc > fromUtc) &&
+                (ignoreLoanId == null || l.Id != ignoreLoanId),
+            ct);
+
+        return !loanOverlap;
+    }
 }
