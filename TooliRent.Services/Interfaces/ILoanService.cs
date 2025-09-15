@@ -1,19 +1,17 @@
+// TooliRent.Services/Interfaces/ILoanService.cs
 using TooliRent.Services.DTOs.Loans;
+
+namespace TooliRent.Services.Interfaces;
 
 public interface ILoanService
 {
+    // Hämta ett enskilt lån
     Task<LoanDto?> GetAsync(Guid id, CancellationToken ct = default);
 
-    // Direktutlåning (utan reservation)
-    Task<LoanDto> CheckoutAsync(LoanCheckoutDto dto, CancellationToken ct = default);
+    Task<LoanDto?> ReturnAsMemberAsync(Guid id, Guid currentMemberId, LoanReturnDto dto, CancellationToken ct = default);
+    Task<LoanDto?> ReturnAsAdminAsync(Guid id, AdminLoanReturnDto dto, CancellationToken ct = default);
 
-    // Utlåning från reservation
-    Task<LoanDto> CheckoutFromReservationAsync(LoanCheckoutFromReservationDto dto, CancellationToken ct = default);
-
-    // Returnera lån – returnerar det uppdaterade lånet
-    Task<LoanDto?> ReturnAsync(Guid id, LoanReturnDto dto, CancellationToken ct = default);
-
-    // Admin-sök: status som int? (0=Open,1=Returned,2=Late) – mappas internt till enum
+    // Sök/paginera lån (admin eller intern användning)
     Task<(IEnumerable<LoanDto> Items, int Total)> SearchAsync(
         Guid? memberId,
         Guid? toolId,
@@ -21,5 +19,23 @@ public interface ILoanService
         bool openOnly,
         int page,
         int pageSize,
+        CancellationToken ct = default);
+
+    // =========================
+    // NYA BATCH-METODER
+    // =========================
+
+    // Medlem: kan checka ut 1..N verktyg i ett anrop.
+    // - MemberId tas ALLTID från JWT och skickas in som currentMemberId.
+    // - Varje item får antingen ReservationId (enkelt) ELLER ToolId + DueAtUtc (direktlån).
+    Task<IEnumerable<LoanDto>> CheckoutBatchForMemberAsync(
+        IEnumerable<LoanCheckoutDto> items,
+        Guid currentMemberId,
+        CancellationToken ct = default);
+
+    // Admin: kan checka ut 1..N verktyg åt valfri medlem.
+    // - MemberId är ett fält i varje item.
+    Task<IEnumerable<LoanDto>> CheckoutBatchForAdminAsync(
+        IEnumerable<AdminLoanCheckoutDto> items,
         CancellationToken ct = default);
 }

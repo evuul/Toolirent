@@ -75,7 +75,7 @@ public class MappingProfile : Profile
                     : string.Empty))
             .ForMember(d => d.Status, o => o.MapFrom(s => (int)s.Status));
 
-        CreateMap<ReservationCreateDto, Reservation>()
+        CreateMap<ReservationBatchCreateDto, Reservation>()
             .ForMember(d => d.Id,         o => o.Ignore())
             .ForMember(d => d.TotalPrice, o => o.Ignore()) // beräknas i service
             .ForMember(d => d.IsPaid,     o => o.Ignore()) // sätts i service

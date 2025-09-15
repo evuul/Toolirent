@@ -1,52 +1,50 @@
-using System;
 using FluentValidation;
 using TooliRent.Services.DTOs.Loans;
 
-// Direkt lån utan reservation
-public class LoanCheckoutValidator : AbstractValidator<LoanCheckoutDto>
+// ====================
+// Medlem
+// ====================
+public class LoanCheckoutDtoValidator : AbstractValidator<LoanCheckoutDto>
 {
-    public LoanCheckoutValidator()
+    public LoanCheckoutDtoValidator()
     {
-        RuleFor(x => x.ToolId).NotEmpty();
-        RuleFor(x => x.MemberId).NotEmpty();
-
-        RuleFor(x => x.DueAtUtc)
-            .GreaterThan(DateTime.UtcNow)
-            .WithMessage("Due date must be in the future.")
-            .LessThanOrEqualTo(DateTime.UtcNow.AddYears(1))
-            .WithMessage("Due date cannot be more than 1 year from now.");
-    }
-}
-
-// Lån baserat på reservation (endast ReservationId krävs)
-public class LoanCheckoutFromReservationValidator : AbstractValidator<LoanCheckoutFromReservationDto>
-{
-    public LoanCheckoutFromReservationValidator()
-    {
-        RuleFor(x => x.ReservationId).NotEmpty();
-
-        // Om klienten skickar ett eget DueAtUtc:
-        When(x => x.DueAtUtc.HasValue, () =>
+        // Om ReservationId finns → inga fler krav
+        When(x => x.ReservationId.HasValue, () =>
         {
-            RuleFor(x => x.DueAtUtc!.Value)
-                .GreaterThan(DateTime.UtcNow)
-                .WithMessage("Due date must be in the future");
+            RuleFor(x => x.ReservationId).NotEmpty();
+        });
+
+        // Annars krävs ToolId + DueAtUtc
+        When(x => !x.ReservationId.HasValue, () =>
+        {
+            RuleFor(x => x.ToolId).NotEmpty().WithMessage("ToolId krävs för direktlån.");
+            RuleFor(x => x.DueAtUtc)
+                .NotNull().WithMessage("DueAtUtc krävs för direktlån.")
+                .Must(d => d!.Value > DateTime.UtcNow).WithMessage("DueAtUtc måste vara i framtiden.");
         });
     }
 }
 
-// Returnera ett lån (id kommer från route, så ingen LoanId i DTO)
-public class LoanReturnDtoValidator : AbstractValidator<LoanReturnDto>
+// ====================
+// Admin
+// ====================
+public class AdminLoanCheckoutDtoValidator : AbstractValidator<AdminLoanCheckoutDto>
 {
-    public LoanReturnDtoValidator()
+    public AdminLoanCheckoutDtoValidator()
     {
-        RuleFor(x => x.ReturnedAtUtc)
-            .NotEmpty()
-            .LessThanOrEqualTo(DateTime.UtcNow.AddMinutes(5))
-            .WithMessage("ReturnedAtUtc cannot be in the distant future.");
+        When(x => x.ReservationId.HasValue, () =>
+        {
+            RuleFor(x => x.ReservationId).NotEmpty();
+        });
 
-        RuleFor(x => x.Notes)
-            .MaximumLength(500)
-            .WithMessage("Notes cannot exceed 500 characters.");
+        When(x => !x.ReservationId.HasValue, () =>
+        {
+            RuleFor(x => x.ToolId).NotEmpty().WithMessage("ToolId krävs för direktlån.");
+            RuleFor(x => x.DueAtUtc)
+                .NotNull().WithMessage("DueAtUtc krävs för direktlån.")
+                .Must(d => d!.Value > DateTime.UtcNow).WithMessage("DueAtUtc måste vara i framtiden.");
+        });
+
+        RuleFor(x => x.MemberId).NotEmpty().WithMessage("MemberId krävs (admin).");
     }
 }

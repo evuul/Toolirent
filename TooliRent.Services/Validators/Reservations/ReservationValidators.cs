@@ -2,18 +2,24 @@
 using FluentValidation;
 using TooliRent.Services.DTOs.Reservations;
 
-public class ReservationCreateDtoValidator : AbstractValidator<ReservationCreateDto>
+public class ReservationBatchCreateDtoValidator : AbstractValidator<ReservationBatchCreateDto>
 {
-    public ReservationCreateDtoValidator()
+    public ReservationBatchCreateDtoValidator()
     {
-        RuleFor(x => x.ToolId).NotEmpty();
-        RuleFor(x => x.MemberId).NotEmpty();
+        RuleFor(x => x.ToolIds)
+            .NotNull().WithMessage("ToolIds krävs.")
+            .Must(ids => ids.Any()).WithMessage("Minst ett verktyg måste väljas.")
+            .Must(ids => ids.Distinct().Count() == ids.Count())
+            .WithMessage("ToolIds innehåller dubletter.");
+
+        // MemberId valideras inte som required – i /my/batch sätter controllern den från JWT.
+        // Admin kan skicka MemberId i payload.
 
         RuleFor(x => x.StartUtc)
-            .LessThan(x => x.EndUtc).WithMessage("StartUtc must be before EndUtc")
-            .GreaterThan(DateTime.UtcNow.AddMinutes(-5)).WithMessage("StartUtc cannot be far in the past");
+            .LessThan(x => x.EndUtc).WithMessage("StartUtc måste vara före EndUtc.")
+            .GreaterThan(DateTime.UtcNow.AddMinutes(-5)).WithMessage("StartUtc kan inte vara långt bakåt i tiden.");
 
         RuleFor(x => x.EndUtc)
-            .GreaterThan(DateTime.UtcNow).WithMessage("EndUtc must be in the future");
+            .GreaterThan(DateTime.UtcNow).WithMessage("EndUtc måste ligga i framtiden.");
     }
 }
