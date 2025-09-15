@@ -67,6 +67,64 @@ public class ReservationService : IReservationService
         var created = await _uow.Reservations.GetByIdAsync(entity.Id, ct);
         return _mapper.Map<ReservationDto>(created!);
     }
+    
+    public async Task<ReservationBatchResultDto> CreateBatchAsync(ReservationBatchCreateDto dto, CancellationToken ct = default)
+    {
+        var items = new List<ReservationBatchItemResultDto>();
+
+        // Basvalidering av fönster
+        if (dto.EndUtc <= dto.StartUtc)
+            throw new ArgumentException("EndUtc måste vara efter StartUtc.");
+
+        foreach (var toolId in dto.ToolIds.Distinct())
+        {
+            try
+            {
+                // Återanvänd din vanliga CreateAsync – NOTERA att MemberId redan är satt/överskriven i controllern
+                var single = new ReservationCreateDto(
+                    ToolId: toolId,
+                    MemberId: dto.MemberId!.Value, // kommer från controller
+                    StartUtc: dto.StartUtc,
+                    EndUtc: dto.EndUtc
+                );
+
+                var created = await CreateAsync(single, ct);
+
+                items.Add(new ReservationBatchItemResultDto(
+                    ToolId: toolId,
+                    Success: true,
+                    Error: null,
+                    Reservation: created
+                ));
+            }
+            catch (ToolUnavailableException ex)
+            {
+                items.Add(new ReservationBatchItemResultDto(
+                    ToolId: toolId,
+                    Success: false,
+                    Error: ex.Message,
+                    Reservation: null
+                ));
+            }
+            catch (Exception ex)
+            {
+                // Fånga övriga fel per item – batch ska inte dö helt för ett fel
+                items.Add(new ReservationBatchItemResultDto(
+                    ToolId: toolId,
+                    Success: false,
+                    Error: ex.Message,
+                    Reservation: null
+                ));
+            }
+        }
+
+        return new ReservationBatchResultDto(
+            MemberId: dto.MemberId!.Value,
+            StartUtc: dto.StartUtc,
+            EndUtc: dto.EndUtc,
+            Items: items
+        );
+    }
 
     public async Task<bool> CancelAsync(Guid id, CancellationToken ct = default)
     {

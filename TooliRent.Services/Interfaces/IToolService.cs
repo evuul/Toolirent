@@ -15,4 +15,5 @@ public interface IToolService
     Task<ToolDto> CreateAsync(ToolCreateDto dto, CancellationToken ct = default);
     Task<bool> UpdateAsync(Guid id, ToolUpdateDto dto, CancellationToken ct = default);
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
+    Task<IEnumerable<ToolDto>> GetAvailableInWindowAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
 }

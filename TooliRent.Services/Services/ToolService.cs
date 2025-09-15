@@ -80,4 +80,10 @@ public class ToolService : IToolService
         await _uow.Tools.UpdateAsync(entity, ct);
         return await _uow.SaveChangesAsync(ct) > 0;
     }
+    
+    public async Task<IEnumerable<ToolDto>> GetAvailableInWindowAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default)
+    {
+        var tools = await _uow.Tools.GetAvailableInWindowAsync(fromUtc, toUtc, ct);
+        return _mapper.Map<IEnumerable<ToolDto>>(tools);
+    }
 }
