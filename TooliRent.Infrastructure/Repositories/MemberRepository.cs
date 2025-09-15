@@ -1,3 +1,4 @@
+// TooliRent.Infrastructure/Repositories/MemberRepository.cs
 using Microsoft.EntityFrameworkCore;
 using TooliRent.Core.Interfaces;
 using TooliRent.Core.Models;
@@ -16,23 +17,51 @@ public class MemberRepository : Repository<Member>, IMemberRepository
     public async Task<Member?> GetByIdentityUserIdAsync(string identityUserId, CancellationToken ct = default)
         => await _db.Members.FirstOrDefaultAsync(m => m.IdentityUserId == identityUserId, ct);
 
-    //  Aktiva medlemmar (dvs. ej soft-deletade)
     public async Task<IEnumerable<Member>> GetActiveAsync(CancellationToken ct = default)
         => await _db.Members
             .AsNoTracking()
-            .Where(m => m.DeletedAtUtc == null)
+            .Where(m => m.DeletedAtUtc == null) // täcks också av global filter om du har det
             .OrderBy(m => m.LastName).ThenBy(m => m.FirstName)
             .ToListAsync(ct);
 
-    // Hämta medlem inkl. reservationer (och ev. tool)
     public async Task<Member?> GetWithReservationsAsync(Guid id, CancellationToken ct = default)
         => await _db.Members
             .Include(m => m.Reservations)
             .ThenInclude(r => r.Tool)
             .FirstOrDefaultAsync(m => m.Id == id, ct);
 
-    // (valfritt) override om du vill att “vanliga” GetById tar med reservationer:
     public override async Task<Member?> GetByIdAsync(Guid id, CancellationToken ct = default)
-        => await _db.Members
-            .FirstOrDefaultAsync(m => m.Id == id, ct);
+        => await _db.Members.FirstOrDefaultAsync(m => m.Id == id, ct);
+
+    // NYTT: sök + pagination
+    public async Task<(IEnumerable<Member> Items, int Total)> SearchAsync(
+        string? query,
+        int page,
+        int pageSize,
+        CancellationToken ct = default)
+    {
+        if (page <= 0) page = 1;
+        if (pageSize <= 0) pageSize = 20;
+
+        var q = _db.Members.AsNoTracking(); // global query filter tar bort soft-deletade
+
+        if (!string.IsNullOrWhiteSpace(query))
+        {
+            var like = $"%{query.Trim()}%";
+            q = q.Where(m =>
+                EF.Functions.Like(m.FirstName, like) ||
+                EF.Functions.Like(m.LastName, like)  ||
+                EF.Functions.Like(m.Email, like));
+        }
+
+        var total = await q.CountAsync(ct);
+
+        var items = await q
+            .OrderBy(m => m.LastName).ThenBy(m => m.FirstName)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(ct);
+
+        return (items, total);
+    }
 }

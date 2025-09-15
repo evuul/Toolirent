@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using TooliRent.Services.DTOs.Tools;
+using TooliRent.Services.Interfaces;
 
 [ApiController]
 [Route("api/[controller]")]
@@ -26,6 +27,7 @@ public class ToolsController : ControllerBase
         return Ok(new { total, items });
     }
 
+    // GET: api/tools/{id}
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(ToolDto), 200)]
     [ProducesResponseType(404)]
@@ -35,24 +37,46 @@ public class ToolsController : ControllerBase
         return tool is null ? NotFound() : Ok(tool);
     }
 
+    // GET: api/tools/available?fromUtc=...&toUtc=...
+    // Returns tools that are free (no overlapping reservations/loans) AND marked IsAvailable during the window.
+    [HttpGet("available")]
+    [ProducesResponseType(typeof(IEnumerable<ToolDto>), 200)]
+    [ProducesResponseType(400)]
+    public async Task<IActionResult> GetAvailableInWindow(
+        [FromQuery] DateTime fromUtc,
+        [FromQuery] DateTime toUtc,
+        CancellationToken ct = default)
+    {
+        if (toUtc <= fromUtc)
+            return BadRequest("toUtc must be after fromUtc.");
+
+        var items = await _tools.GetAvailableInWindowAsync(fromUtc, toUtc, ct);
+        return Ok(items);
+    }
+
+    // POST: api/tools
     [HttpPost]
     [ProducesResponseType(typeof(ToolDto), 201)]
     [ProducesResponseType(400)]
     public async Task<IActionResult> Create([FromBody] ToolCreateDto dto, CancellationToken ct)
     {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
         var created = await _tools.CreateAsync(dto, ct);
         return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
     }
 
+    // PUT: api/tools/{id}
     [HttpPut("{id:guid}")]
     [ProducesResponseType(204)]
     [ProducesResponseType(404)]
     public async Task<IActionResult> Update(Guid id, [FromBody] ToolUpdateDto dto, CancellationToken ct)
     {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
         var ok = await _tools.UpdateAsync(id, dto, ct);
         return ok ? NoContent() : NotFound();
     }
 
+    // DELETE: api/tools/{id}
     [HttpDelete("{id:guid}")]
     [ProducesResponseType(204)]
     [ProducesResponseType(404)]
