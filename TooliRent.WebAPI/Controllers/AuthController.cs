@@ -70,50 +70,70 @@ public class AuthController : ControllerBase
         });
     }
 
-    // -------- REGISTER --------
-    [HttpPost("register")]
-    [AllowAnonymous]
-    public async Task<IActionResult> Register([FromBody] AuthRegisterRequestDto dto, CancellationToken ct)
+// -------- REGISTER --------
+[HttpPost("register")]
+[AllowAnonymous]
+[ProducesResponseType(typeof(object), 201)]
+[ProducesResponseType(typeof(object), 400)]
+public async Task<IActionResult> Register([FromBody] AuthRegisterRequestDto dto, CancellationToken ct)
+{
+    if (!ModelState.IsValid) return ValidationProblem(ModelState);
+
+    // 1) Kolla om e-post redan finns
+    var existing = await _userMgr.FindByEmailAsync(dto.Email);
+    if (existing != null)
+        return BadRequest(new { message = "Email är redan registrerad." });
+
+    // 2) Skapa Identity-användare
+    var user = new IdentityUser
     {
-        var existing = await _userMgr.FindByEmailAsync(dto.Email);
-        if (existing != null) return BadRequest(new { message = "Email är redan registrerad." });
+        UserName = dto.Email.Trim(),
+        Email = dto.Email.Trim(),
+        EmailConfirmed = true // ev. sätt till false om du vill köra e-postverifiering
+    };
 
-        var user = new IdentityUser
-        {
-            UserName = dto.Email,
-            Email = dto.Email,
-            EmailConfirmed = true
-        };
+    var create = await _userMgr.CreateAsync(user, dto.Password);
+    if (!create.Succeeded)
+        return BadRequest(new { errors = create.Errors.Select(e => e.Description) });
 
-        var create = await _userMgr.CreateAsync(user, dto.Password);
-        if (!create.Succeeded)
-            return BadRequest(new { errors = create.Errors.Select(e => e.Description) });
+    // 3) Sätt standardroll
+    await _userMgr.AddToRoleAsync(user, "Member");
 
-        await _userMgr.AddToRoleAsync(user, "Member");
-
-        // Skapa domain Member
+    // 4) Skapa motsvarande Member i din domändatabas
+    Guid memberId = Guid.Empty;
+    try
+    {
         var member = new Member
         {
-            FirstName      = dto.FirstName.Trim(),
-            LastName       = dto.LastName.Trim(),
+            FirstName      = dto.FirstName?.Trim() ?? string.Empty,
+            LastName       = dto.LastName?.Trim()  ?? string.Empty,
             Email          = dto.Email.Trim(),
             IdentityUserId = user.Id,
-            CreatedAtUtc   = DateTime.UtcNow
+            CreatedAtUtc   = DateTime.UtcNow,
+            IsActive       = true // om du har flaggan
         };
+
         _domainDb.Members.Add(member);
         await _domainDb.SaveChangesAsync(ct);
-
-        var (jwt, accessExpires) = await GenerateJwtAsync(user, member.Id);
-        var (refreshToken, refreshExpires) = await IssueRefreshTokenAsync(user.Id, HttpContext.Connection.RemoteIpAddress?.ToString());
-
-        return Ok(new
-        {
-            token = jwt,
-            expires = accessExpires,
-            refreshToken,
-            refreshExpires
-        });
+        memberId = member.Id;
     }
+    catch
+    {
+        // Om domän-skapandet fallerar: ta bort Identity-användaren så vi inte hamnar i halvfärdigt läge
+        await _userMgr.DeleteAsync(user);
+        throw;
+    }
+
+    // 5) Svara 201 Created utan tokens (användaren får logga in separat)
+    //    (Vill du, kan du använda Created(uri, body). Här kör vi enkel 201 + payload.)
+    return StatusCode(StatusCodes.Status201Created, new
+    {
+        message  = "Konto skapat. Logga in för att erhålla token.",
+        email    = user.Email,
+        fullName = $"{dto.FirstName} {dto.LastName}".Trim(),
+        memberId
+    });
+}
 
     // -------- REFRESH --------
     [HttpPost("refresh")]
