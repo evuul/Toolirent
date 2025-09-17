@@ -14,6 +14,7 @@ using TooliRent.WebAPI.Middlewares;          // <-- lägg till middleware-namesp
 // Repos + UoW
 using TooliRent.Core.Interfaces;
 using TooliRent.Core.Interfaces.Repositories;
+using TooliRent.Infrastructure.Queries;
 using TooliRent.Infrastructure.Repositories;
 using TooliRent.Infrastructure.UnitOfWork;
 
@@ -89,6 +90,7 @@ builder.Services.AddScoped<IMemberService, MemberService>();
 builder.Services.AddScoped<IReservationService, ReservationService>();
 builder.Services.AddScoped<ILoanService, LoanService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
+builder.Services.AddScoped<IReservationQueries, ReservationQueries>();
 
 // ----------------------------
 // AutoMapper

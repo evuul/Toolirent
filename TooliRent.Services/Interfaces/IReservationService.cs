@@ -5,11 +5,13 @@ namespace TooliRent.Services.Interfaces;
 
 public interface IReservationService
 {
-    Task<ReservationDto?> GetAsync(Guid id, CancellationToken ct = default);
-    Task<IEnumerable<ReservationDto>> GetByMemberAsync(Guid memberId, CancellationToken ct = default);
-    
-    Task<ReservationBatchResultDto> CreateBatchAsync(ReservationBatchCreateDto dto, CancellationToken ct = default);
-
-    Task<bool> CancelAsync(Guid id, CancellationToken ct = default);
-    Task<bool> CompleteAsync(Guid id, Guid loanId, CancellationToken ct = default);
+    Task<ReservationDto> CreateAsync(ReservationCreateDto dto, CancellationToken ct);
+    Task<ReservationDto?> GetByIdAsync(Guid id, CancellationToken ct);
+    Task<ReservationDto?> GetForMemberAsync(Guid id, Guid memberId, CancellationToken ct);
+    Task<bool> CancelAsync(Guid id, Guid? actingMemberId, CancellationToken ct); // actingMemberId != null => ägarkontroll
+    Task<IReadOnlyList<ReservationDto>> GetActiveForMemberAsync(Guid memberId, CancellationToken ct);
+    Task<IReadOnlyList<ReservationDto>> GetHistoryForMemberAsync(Guid memberId, int skip, int take, CancellationToken ct);
+    Task<ReservationBatchResultDto> CreateBatchAsync(
+        ReservationBatchCreateDto dto,
+        CancellationToken ct = default);
 }

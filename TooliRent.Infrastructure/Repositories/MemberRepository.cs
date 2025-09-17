@@ -26,8 +26,10 @@ public class MemberRepository : Repository<Member>, IMemberRepository
 
     public async Task<Member?> GetWithReservationsAsync(Guid id, CancellationToken ct = default)
         => await _db.Members
+            .AsSplitQuery() // undvik kartesisk explosion när flera samlingar inkluderas
             .Include(m => m.Reservations)
-            .ThenInclude(r => r.Tool)
+            .ThenInclude(r => r.Items)
+            .ThenInclude(i => i.Tool)
             .FirstOrDefaultAsync(m => m.Id == id, ct);
 
     public override async Task<Member?> GetByIdAsync(Guid id, CancellationToken ct = default)

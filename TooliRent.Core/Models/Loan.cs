@@ -4,9 +4,7 @@ namespace TooliRent.Core.Models;
 
 public class Loan : BaseEntity
 {
-    public Guid ToolId { get; set; }
-    public Tool Tool { get; set; } = null!;
-
+    // BEHÅLL: medlem, tider, status, avgifter, koppling bak
     public Guid MemberId { get; set; }
     public Member Member { get; set; } = null!;
 
@@ -14,16 +12,18 @@ public class Loan : BaseEntity
     public DateTime DueAtUtc { get; set; }
     public DateTime? ReturnedAtUtc { get; set; }
 
-    public LoanStatus Status { get; set; } = LoanStatus.Open; // Open/Returned/Late
+    public LoanStatus Status { get; set; } = LoanStatus.Open;
 
-    // (valfritt) koppling bak till reservationen som låg till grund
     public Guid? ReservationId { get; set; }
     public Reservation? Reservation { get; set; }
 
-    // avgifter/anteckningar
     public decimal? LateFee { get; set; }
     public string? Notes { get; set; }
-
-    // (om ni har disk/personal som hanterar utlämningen)
     public string? ProcessedByUserId { get; set; }
+
+    // NYTT: ersätter single ToolId/Tool
+    public ICollection<LoanItem> Items { get; set; } = new List<LoanItem>();
+
+    // (valfritt) denormaliserat totalpris för snabb listning
+    public decimal TotalPrice { get; set; }
 }

@@ -7,7 +7,7 @@ namespace TooliRent.Services.DTOs.Loans;
 /// - Direktlån: ange ToolId + DueAtUtc. MemberId kommer från JWT, inte här.
 /// </summary>
 public record LoanCheckoutDto(
-    Guid? ReservationId,
-    Guid? ToolId,
+    Guid? ReservationId,        // om satt: hämta hela bokningen
+    IEnumerable<Guid>? ToolIds, // annars: direktlån av dessa verktyg
     DateTime? DueAtUtc
 );
