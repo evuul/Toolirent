@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using TooliRent.Services.DTOs.Admins;
 using TooliRent.Services.DTOs.Members;
 using TooliRent.Services.DTOs.Reservations;
-using TooliRent.Services.DTOs.Loans;     // AdminLoanCheckoutDto, LoanDto
+using TooliRent.Services.DTOs.Loans;     // LoanCheckoutDto, LoanDto
 using TooliRent.Services.Exceptions;     // BatchReservationFailedException, ToolUnavailableException
 using TooliRent.Services.Interfaces;
 
@@ -118,7 +118,7 @@ public class AdminController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), 403)]
     [ProducesResponseType(typeof(ProblemDetails), 409)]
     public async Task<IActionResult> CreateReservationsBatchForMember(
-        [FromBody] ReservationBatchCreateDto dto,
+        [FromBody] ReservationCreateDto dto,
         CancellationToken ct = default)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
@@ -159,25 +159,29 @@ public class AdminController : ControllerBase
 
     // ============ ADMIN: LÅN (BATCH CHECKOUT) ============
     /// <summary>
-    /// Skapar ett eller flera lån i en batch.
-    /// - Via reservation: ange ReservationId (Member härleds från reservationen).
-    /// - Direktlån: ange ToolId + MemberId + DueAtUtc.
+    /// Skapar ett eller flera lån i en batch för en specifik medlem.
+    /// Body är en TOPP-NIVÅ ARRAY av LoanCheckoutDto:
+    ///  - Via reservation: ange ReservationId (medlem verifieras mot memberId i URL).
+    ///  - Direktlån: ange ToolIds + DueAtUtc (ett lån kan innehålla flera verktyg).
     /// </summary>
-    [HttpPost("loans/checkout-batch")]
+    [HttpPost("members/{memberId:guid}/loans/checkout-batch")]
     [ProducesResponseType(typeof(IEnumerable<LoanDto>), 201)]
     [ProducesResponseType(typeof(ProblemDetails), 400)]
     [ProducesResponseType(typeof(ProblemDetails), 401)]
     [ProducesResponseType(typeof(ProblemDetails), 403)]
     [ProducesResponseType(typeof(ProblemDetails), 409)]
     public async Task<IActionResult> CheckoutLoansBatchForAdmin(
-        [FromBody] IEnumerable<AdminLoanCheckoutDto> items,
+        Guid memberId,
+        [FromBody] IEnumerable<LoanCheckoutDto> items,
         CancellationToken ct = default)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        if (items is null || !items.Any())
+            return BadRequest(new { message = "Minst ett item krävs." });
 
         try
         {
-            var created = await _loans.CheckoutBatchForAdminAsync(items, ct);
+            var created = await _loans.CheckoutBatchForMemberAsync(items, memberId, ct);
             // vi har ingen specifik "GET loan" route här, så vi skickar 201 utan Location
             return Created(string.Empty, created);
         }

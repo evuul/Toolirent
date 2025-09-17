@@ -1,4 +1,3 @@
-// TooliRent.Services/Interfaces/ILoanService.cs
 using TooliRent.Services.DTOs.Loans;
 
 namespace TooliRent.Services.Interfaces;
@@ -22,20 +21,17 @@ public interface ILoanService
         CancellationToken ct = default);
 
     // =========================
-    // NYA BATCH-METODER
+    // GEMENSAM BATCH-METOD
     // =========================
 
-    // Medlem: kan checka ut 1..N verktyg i ett anrop.
-    // - MemberId tas ALLTID från JWT och skickas in som currentMemberId.
-    // - Varje item får antingen ReservationId (enkelt) ELLER ToolId + DueAtUtc (direktlån).
+    /// <summary>
+    /// Skapar ett eller flera lån i en batch.
+    /// - Me-endpoints: currentMemberId hämtas från JWT.
+    /// - Admin-endpoints: currentMemberId kommer från routen (admin väljer medlem).
+    /// - Varje item får antingen ReservationId (enkelt) eller ToolIds + DueAtUtc (direktlån).
+    /// </summary>
     Task<IEnumerable<LoanDto>> CheckoutBatchForMemberAsync(
         IEnumerable<LoanCheckoutDto> items,
         Guid currentMemberId,
-        CancellationToken ct = default);
-
-    // Admin: kan checka ut 1..N verktyg åt valfri medlem.
-    // - MemberId är ett fält i varje item.
-    Task<IEnumerable<LoanDto>> CheckoutBatchForAdminAsync(
-        IEnumerable<AdminLoanCheckoutDto> items,
         CancellationToken ct = default);
 }

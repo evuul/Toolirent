@@ -88,7 +88,7 @@ public class ReservationService : IReservationService
     }
 
     // ========= CREATE BATCH: Admin skapar EN multi-item reservation =========
-    public async Task<ReservationBatchResultDto> CreateBatchAsync(ReservationBatchCreateDto dto, CancellationToken ct)
+    public async Task<ReservationBatchResultDto> CreateBatchAsync(ReservationCreateDto dto, CancellationToken ct)
     {
         if (dto is null) throw new ArgumentNullException(nameof(dto));
 

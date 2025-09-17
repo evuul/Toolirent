@@ -12,6 +12,6 @@ public interface IReservationService
     Task<IReadOnlyList<ReservationDto>> GetActiveForMemberAsync(Guid memberId, CancellationToken ct);
     Task<IReadOnlyList<ReservationDto>> GetHistoryForMemberAsync(Guid memberId, int skip, int take, CancellationToken ct);
     Task<ReservationBatchResultDto> CreateBatchAsync(
-        ReservationBatchCreateDto dto,
+        ReservationCreateDto dto,
         CancellationToken ct = default);
 }
