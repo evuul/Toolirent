@@ -19,18 +19,17 @@ public class ExceptionHandlingMiddleware
         }
         catch (Exception ex)
         {
-            // Bestäm statuskod + titel baserat på exception-typ
+            // Välj statuskod + titel baserat på typ
             var (status, title) = ex switch
             {
-                ToolUnavailableException      => (HttpStatusCode.Conflict, "Resource conflict"),
-                BatchReservationFailedException => (HttpStatusCode.Conflict, "Batch reservation failed"),
-                ArgumentException             => (HttpStatusCode.BadRequest, "Invalid request"),
-                InvalidOperationException     => (HttpStatusCode.BadRequest, "Invalid operation"),
-                UnauthorizedAccessException   => (HttpStatusCode.Unauthorized, "Unauthorized"),
-                _                             => (HttpStatusCode.InternalServerError, "Unexpected error")
+                ToolUnavailableException         => (HttpStatusCode.Conflict, "Resource conflict"),
+                BatchReservationFailedException  => (HttpStatusCode.Conflict, "Batch reservation failed"),
+                ArgumentException                => (HttpStatusCode.BadRequest, "Invalid request"),
+                InvalidOperationException        => (HttpStatusCode.BadRequest, "Invalid operation"),
+                UnauthorizedAccessException      => (HttpStatusCode.Unauthorized, "Unauthorized"),
+                _                                => (HttpStatusCode.InternalServerError, "Unexpected error")
             };
 
-            // Skapa standard ProblemDetails
             var problem = new ProblemDetails
             {
                 Status = (int)status,
@@ -39,15 +38,21 @@ public class ExceptionHandlingMiddleware
                 Instance = ctx.Request.Path
             };
 
-            // Om det är en BatchReservationFailedException → lägg på extra data
+            // Extra payload för klienten att kunna visa exakt vilka verktyg som blockerar
+            if (ex is ToolUnavailableException tu)
+            {
+                problem.Extensions["unavailableToolIds"] = tu.ToolIds;
+            }
+
+            // Behåll stöd om ni fortfarande kan kasta denna i något hörn
             if (ex is BatchReservationFailedException batchEx)
             {
-                problem.Extensions["availableToolIds"] = batchEx.AvailableToolIds;
+                problem.Extensions["availableToolIds"]   = batchEx.AvailableToolIds;
                 problem.Extensions["unavailableToolIds"] = batchEx.UnavailableToolIds;
             }
 
             ctx.Response.ContentType = "application/problem+json";
-            ctx.Response.StatusCode = problem.Status ?? 500;
+            ctx.Response.StatusCode  = problem.Status ?? 500;
 
             var json = JsonSerializer.Serialize(problem, new JsonSerializerOptions
             {

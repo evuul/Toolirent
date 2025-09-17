@@ -8,19 +8,6 @@ using TooliRent.Services.Interfaces;
 
 namespace TooliRent.Services.Services
 {
-    /// <summary>
-    /// Domänlogik för lån:
-    /// - Batch-utcheckning för medlemmar (MemberId tas från JWT i controller)
-    /// - Batch-utcheckning för admin (MemberId anges per item)
-    /// - Återlämning (separata flöden: medlem vs admin)
-    /// - Sök och hämta enskilt lån
-    ///
-    /// Principer:
-    /// - "Allt eller inget" i batch: validera alla poster först, skriv allt i ett svep.
-    /// - Tider (CheckedOutAtUtc) sätts alltid på servern (UTC).
-    /// - Vid lån från reservation: reservationen markeras Completed (arkiveras, ej soft delete).
-    /// - Tillgänglighetskoll görs mot fönster [now, DueAtUtc] via ToolRepository.IsAvailableInWindowAsync.
-    /// </summary>
     public class LoanService : ILoanService
     {
         private readonly IUnitOfWork _uow;
@@ -44,8 +31,7 @@ namespace TooliRent.Services.Services
         // =====================================================================
         // MEDLEM: Batch-checkout (MemberId från JWT i controller)
         //  - Varje item: antingen ReservationId ELLER (ToolId + DueAtUtc)
-        //  - MemberId injiceras via parametern currentMemberId (från JWT)
-        //  - Allt eller inget: dubblettskydd och tillgänglighetskoll innan skrivning
+        //  - Allt eller inget
         // =====================================================================
         public async Task<IEnumerable<LoanDto>> CheckoutBatchForMemberAsync(
             IEnumerable<LoanCheckoutDto> items,
@@ -54,14 +40,14 @@ namespace TooliRent.Services.Services
         {
             var now        = DateTime.UtcNow;
             var toCreate   = new List<Loan>();
-            var toolsTaken = new HashSet<Guid>(); // skydd mot dubbletter i samma batch
+            var toolsTaken = new HashSet<Guid>(); // skydd mot duplicerade toolId i samma batch
 
-            // 1) Validera samtliga poster (inget skrivs än)
+            // Validera alla poster först (inget skrivs än)
             foreach (var it in items)
             {
                 if (it.ReservationId is Guid rid)
                 {
-                    // ---- Lån baserat på reservation ----
+                    // ---- Lån baserat på RESERVATION (multi-item) ----
                     var res = await _uow.Reservations.GetByIdAsync(rid, ct)
                               ?? throw new InvalidOperationException("Reservation not found.");
 
@@ -71,77 +57,108 @@ namespace TooliRent.Services.Services
                     if (res.MemberId != currentMemberId)
                         throw new UnauthorizedAccessException("Reservationen tillhör inte denna medlem.");
 
-                    var tool = await _uow.Tools.GetByIdAsync(res.ToolId, ct)
-                               ?? throw new InvalidOperationException("Tool not found.");
-
-                    if (!toolsTaken.Add(res.ToolId))
-                        throw new InvalidOperationException("Samma verktyg förekommer flera gånger i batchen.");
-
                     if (now < res.StartUtc)
                         throw new InvalidOperationException($"Kan inte checka ut före {res.StartUtc:yyyy-MM-dd HH:mm} UTC.");
                     if (now >= res.EndUtc)
                         throw new InvalidOperationException("Reservationens sluttid har passerat.");
 
+                    if (res.Items == null || res.Items.Count == 0)
+                        throw new InvalidOperationException("Reservationen saknar items.");
+
+                    // dueAt = input eller reservationens slut
                     var dueAt = it.DueAtUtc ?? res.EndUtc;
                     if (dueAt <= now)
                         throw new InvalidOperationException("DueAtUtc/EndUtc måste vara i framtiden.");
 
-                    // Ledighetskontroll i fönstret [nu, dueAt]
-                    var free = await _uow.Tools.IsAvailableInWindowIgnoringAsync(
-                        res.ToolId, now, dueAt,
+                    // Kolla dubbletter i samma batch (per verktyg)
+                    foreach (var item in res.Items)
+                        if (!toolsTaken.Add(item.ToolId))
+                            throw new InvalidOperationException("Samma verktyg förekommer flera gånger i batchen.");
+
+                    // Tillgänglighet för ALLA tools i reservationen (ignorera den här reservationen)
+                    var toolIds = res.Items.Select(x => x.ToolId).Distinct().ToArray();
+                    var avail = await _uow.Tools.AreAvailableInWindowAsync(
+                        toolIds, now, dueAt,
                         ignoreReservationId: res.Id,
                         ignoreLoanId: null,
-                        ct: ct);                    if (!free)
-                        throw new ToolUnavailableException("Verktyget är inte tillgängligt i valt tidsintervall.");
+                        ct: ct);
 
-                    toCreate.Add(new Loan
+                    var unavailable = avail.Where(kv => kv.Value == false).Select(kv => kv.Key).ToList();
+                    if (unavailable.Count > 0)
+                        throw new ToolUnavailableException(unavailable, "Ett eller flera verktyg är inte tillgängliga i valt tidsintervall.");
+
+                    // Skapa Loan + LoanItems från reservationens items
+                    var days = Math.Max(1, (int)Math.Ceiling((dueAt - now).TotalDays));
+                    var loanItems = res.Items.Select(i => new LoanItem
                     {
-                        ToolId = tool.Id,
-                        MemberId = currentMemberId,
-                        ReservationId = res.Id,
-                        CheckedOutAtUtc = now,
-                        DueAtUtc = dueAt,
-                        Status = LoanStatus.Open
-                    });
+                        ToolId      = i.ToolId,
+                        PricePerDay = i.PricePerDay
+                    }).ToList();
 
-                    // Markera reservationen som Completed (skrivs först vid SaveChanges)
+                    var totalPerDay = loanItems.Sum(li => li.PricePerDay);
+                    var loan = new Loan
+                    {
+                        MemberId         = res.MemberId,
+                        ReservationId    = res.Id,
+                        CheckedOutAtUtc  = now,
+                        DueAtUtc         = dueAt,
+                        Status           = LoanStatus.Open,
+                        Items            = loanItems,
+                        TotalPrice       = totalPerDay * days
+                    };
+
+                    // Markera reservationen som Completed (skrivs vid SaveChanges)
                     res.Status = ReservationStatus.Completed;
                     await _uow.Reservations.UpdateAsync(res, ct);
+
+                    toCreate.Add(loan);
                 }
                 else
                 {
-                    // ---- Direktlån (utan reservation) ----
-                    var toolId = it.ToolId ?? throw new ArgumentException("ToolId krävs för direktlån.");
-                    var dueAt  = it.DueAtUtc ?? throw new ArgumentException("DueAtUtc krävs för direktlån.");
+                    // ---- DIREKTLÅN (multi-item loan) ----
+                    if (it.ToolIds is null || !it.ToolIds.Any() || it.DueAtUtc is null)
+                        throw new ArgumentException("ToolIds och DueAtUtc krävs för direktlån.");
 
-                    var tool = await _uow.Tools.GetByIdAsync(toolId, ct)
-                               ?? throw new InvalidOperationException("Tool not found.");
+                    var dueAt = it.DueAtUtc.Value;
 
-                    if (!toolsTaken.Add(toolId))
-                        throw new InvalidOperationException("Samma verktyg förekommer flera gånger i batchen.");
-
-                    if (!tool.IsAvailable)
-                        throw new ToolUnavailableException("Verktyget är markerat som otillgängligt.");
-
-                    if (dueAt <= now)
-                        throw new ArgumentException("DueAtUtc måste vara i framtiden.");
-
-                    var free = await _uow.Tools.IsAvailableInWindowAsync(toolId, now, dueAt, ct);
-                    if (!free)
-                        throw new ToolUnavailableException("Verktyget är inte tillgängligt i valt tidsintervall.");
-
-                    toCreate.Add(new Loan
+                    var loanItems = new List<LoanItem>();
+                    foreach (var toolId in it.ToolIds)
                     {
-                        ToolId = tool.Id,
-                        MemberId = currentMemberId,
+                        var tool = await _uow.Tools.GetByIdAsync(toolId, ct)
+                                   ?? throw new InvalidOperationException("Tool not found.");
+
+                        if (!toolsTaken.Add(toolId))
+                            throw new InvalidOperationException("Samma verktyg förekommer flera gånger i batchen.");
+
+                        if (!tool.IsAvailable)
+                            throw new ToolUnavailableException(new[] { toolId }, "Verktyget är markerat som otillgängligt.");
+
+                        var free = await _uow.Tools.IsAvailableInWindowAsync(toolId, now, dueAt, ct);
+                        if (!free)
+                            throw new ToolUnavailableException(new[] { toolId }, "Verktyget är inte tillgängligt i valt tidsintervall.");
+
+                        loanItems.Add(new LoanItem { ToolId = tool.Id, PricePerDay = tool.RentalPricePerDay });
+                    }
+
+// Skapa själva lånet
+                    var days = Math.Max(1, (int)Math.Ceiling((dueAt - now).TotalDays));
+                    var totalPerDay = loanItems.Sum(li => li.PricePerDay);
+
+                    var loan = new Loan
+                    {
+                        MemberId        = currentMemberId,
                         CheckedOutAtUtc = now,
-                        DueAtUtc = dueAt,
-                        Status = LoanStatus.Open
-                    });
+                        DueAtUtc        = dueAt,
+                        Status          = LoanStatus.Open,
+                        Items           = loanItems,
+                        TotalPrice      = totalPerDay * days
+                    };
+
+                    toCreate.Add(loan);
                 }
             }
 
-            // 2) Allt ser bra ut → skriv alla i ett svep
+            // 2) Skriv alla i ett svep
             foreach (var l in toCreate)
                 await _uow.Loans.AddAsync(l, ct);
 
@@ -158,9 +175,7 @@ namespace TooliRent.Services.Services
         }
 
         // =====================================================================
-        // ADMIN: Batch-checkout (MemberId per item)
-        //  - Varje item: antingen ReservationId ELLER (ToolId + MemberId + DueAtUtc)
-        //  - Allt eller inget
+        // ADMIN: Batch-checkout (MemberId per item eller från reservation)
         // =====================================================================
         public async Task<IEnumerable<LoanDto>> CheckoutBatchForAdminAsync(
             IEnumerable<AdminLoanCheckoutDto> items,
@@ -174,17 +189,13 @@ namespace TooliRent.Services.Services
             {
                 if (it.ReservationId is Guid rid)
                 {
-                    // ---- Via reservation ----
+                    // ---- Via reservation (multi-item) ----
                     var res = await _uow.Reservations.GetByIdAsync(rid, ct)
                               ?? throw new InvalidOperationException("Reservation not found.");
                     if (res.Status != ReservationStatus.Active)
                         throw new InvalidOperationException("Reservation is not active.");
-
-                    var tool = await _uow.Tools.GetByIdAsync(res.ToolId, ct)
-                               ?? throw new InvalidOperationException("Tool not found.");
-
-                    if (!toolsTaken.Add(res.ToolId))
-                        throw new InvalidOperationException("Samma verktyg förekommer flera gånger i batchen.");
+                    if (res.Items == null || res.Items.Count == 0)
+                        throw new InvalidOperationException("Reservationen saknar items.");
 
                     if (now < res.StartUtc)
                         throw new InvalidOperationException($"Kan inte checka ut före {res.StartUtc:yyyy-MM-dd HH:mm} UTC.");
@@ -195,26 +206,48 @@ namespace TooliRent.Services.Services
                     if (dueAt <= now)
                         throw new InvalidOperationException("DueAtUtc/EndUtc måste vara i framtiden.");
 
-                    var free = await _uow.Tools.IsAvailableInWindowAsync(res.ToolId, now, dueAt, ct);
-                    if (!free)
-                        throw new ToolUnavailableException("Verktyget är inte tillgängligt i valt tidsintervall.");
+                    foreach (var item in res.Items)
+                        if (!toolsTaken.Add(item.ToolId))
+                            throw new InvalidOperationException("Samma verktyg förekommer flera gånger i batchen.");
 
-                    toCreate.Add(new Loan
+                    var toolIds = res.Items.Select(x => x.ToolId).Distinct().ToArray();
+                    var avail = await _uow.Tools.AreAvailableInWindowAsync(
+                        toolIds, now, dueAt,
+                        ignoreReservationId: res.Id,
+                        ignoreLoanId: null,
+                        ct: ct);
+
+                    var unavailable = avail.Where(kv => kv.Value == false).Select(kv => kv.Key).ToList();
+                    if (unavailable.Count > 0)
+                        throw new ToolUnavailableException(unavailable, "Ett eller flera verktyg är inte tillgängliga i valt tidsintervall.");
+
+                    var days = Math.Max(1, (int)Math.Ceiling((dueAt - now).TotalDays));
+                    var loanItems = res.Items.Select(i => new LoanItem
                     {
-                        ToolId = tool.Id,
-                        MemberId = res.MemberId, // alltid från reservationen
-                        ReservationId = res.Id,
+                        ToolId      = i.ToolId,
+                        PricePerDay = i.PricePerDay
+                    }).ToList();
+
+                    var totalPerDay = loanItems.Sum(li => li.PricePerDay);
+                    var loan = new Loan
+                    {
+                        MemberId        = res.MemberId, // från reservation
+                        ReservationId   = res.Id,
                         CheckedOutAtUtc = now,
-                        DueAtUtc = dueAt,
-                        Status = LoanStatus.Open
-                    });
+                        DueAtUtc        = dueAt,
+                        Status          = LoanStatus.Open,
+                        Items           = loanItems,
+                        TotalPrice      = totalPerDay * days
+                    };
 
                     res.Status = ReservationStatus.Completed;
                     await _uow.Reservations.UpdateAsync(res, ct);
+
+                    toCreate.Add(loan);
                 }
                 else
                 {
-                    // ---- Direktlån ----
+                    // ---- Direktlån (single-item) ----
                     if (it.ToolId is null || it.MemberId is null || it.DueAtUtc is null)
                         throw new ArgumentException("ToolId, MemberId och DueAtUtc krävs för direktlån.");
 
@@ -231,33 +264,38 @@ namespace TooliRent.Services.Services
                         throw new InvalidOperationException("Samma verktyg förekommer flera gånger i batchen.");
 
                     if (!tool.IsAvailable)
-                        throw new ToolUnavailableException("Verktyget är markerat som otillgängligt.");
+                        throw new ToolUnavailableException(new[] { toolId }, "Verktyget är markerat som otillgängligt.");
 
                     if (dueAt <= now)
                         throw new ArgumentException("DueAtUtc måste vara i framtiden.");
 
                     var free = await _uow.Tools.IsAvailableInWindowAsync(toolId, now, dueAt, ct);
                     if (!free)
-                        throw new ToolUnavailableException("Verktyget är inte tillgängligt i valt tidsintervall.");
+                        throw new ToolUnavailableException(new[] { toolId }, "Verktyget är inte tillgängligt i valt tidsintervall.");
 
-                    toCreate.Add(new Loan
+                    var days = Math.Max(1, (int)Math.Ceiling((dueAt - now).TotalDays));
+                    var loan = new Loan
                     {
-                        ToolId = tool.Id,
-                        MemberId = member.Id, // admin anger explicit
+                        MemberId        = member.Id,
                         CheckedOutAtUtc = now,
-                        DueAtUtc = dueAt,
-                        Status = LoanStatus.Open
-                    });
+                        DueAtUtc        = dueAt,
+                        Status          = LoanStatus.Open,
+                        Items           = new List<LoanItem>
+                        {
+                            new LoanItem { ToolId = tool.Id, PricePerDay = tool.RentalPricePerDay }
+                        },
+                        TotalPrice      = tool.RentalPricePerDay * days
+                    };
+
+                    toCreate.Add(loan);
                 }
             }
 
-            // Spara alla i ett svep
             foreach (var l in toCreate)
                 await _uow.Loans.AddAsync(l, ct);
 
             await _uow.SaveChangesAsync(ct);
 
-            // Returnera (mappa)
             var result = new List<LoanDto>();
             foreach (var l in toCreate)
             {
@@ -268,10 +306,7 @@ namespace TooliRent.Services.Services
         }
 
         // =====================================================================
-        // RETUR: Medlem (sitt eget lån)
-        //  - MemberId kommer från JWT (controller)
-        //  - ReturnedAtUtc sätts alltid = UtcNow
-        //  - Om lånet inte finns eller ej tillhör medlemmen → null (controller svarar 404)
+        // RETUR: Medlem
         // =====================================================================
         public async Task<LoanDto?> ReturnAsMemberAsync(
             Guid id,
@@ -281,25 +316,20 @@ namespace TooliRent.Services.Services
         {
             var loan = await _uow.Loans.GetByIdAsync(id, ct);
             if (loan is null) return null;
-
-            // Ägarkontroll: exponera inte lånet om det inte tillhör medlemmen
             if (loan.MemberId != currentMemberId) return null;
 
-            // Redan stängt? Returnera nuvarande status
             if (loan.Status == LoanStatus.Returned || loan.Status == LoanStatus.Late)
                 return _mapper.Map<LoanDto>(loan);
 
-            // Sätt returinfo
             var returnedAt = DateTime.UtcNow;
             loan.ReturnedAtUtc = returnedAt;
             loan.Notes = dto.Notes;
 
-            // Status + ev. förseningsavgift
             if (returnedAt > loan.DueAtUtc)
             {
                 loan.Status = LoanStatus.Late;
                 var daysLate = Math.Ceiling((returnedAt - loan.DueAtUtc).TotalDays);
-                loan.LateFee = (decimal)daysLate * 50m; // enkel modell
+                loan.LateFee = (decimal)daysLate * 50m;
             }
             else
             {
@@ -315,8 +345,6 @@ namespace TooliRent.Services.Services
 
         // =====================================================================
         // RETUR: Admin
-        //  - Admin anger ReturnedAtUtc själv (kan backdateras)
-        //  - Om lånet inte finns → null (controller svarar 404)
         // =====================================================================
         public async Task<LoanDto?> ReturnAsAdminAsync(
             Guid id,
@@ -326,12 +354,10 @@ namespace TooliRent.Services.Services
             var loan = await _uow.Loans.GetByIdAsync(id, ct);
             if (loan is null) return null;
 
-            // Redan stängt? Returnera nuvarande status
             if (loan.Status == LoanStatus.Returned || loan.Status == LoanStatus.Late)
                 return _mapper.Map<LoanDto>(loan);
 
             var returnedAt = dto.ReturnedAtUtc;
-
             loan.ReturnedAtUtc = returnedAt;
             loan.Notes         = dto.Notes;
 
@@ -354,7 +380,7 @@ namespace TooliRent.Services.Services
         }
 
         // -------------------------------------------------
-        // Sök efter lån (admin / intern)
+        // Sök (delegation till repo, mappning till DTO)
         // -------------------------------------------------
         public async Task<(IEnumerable<LoanDto> Items, int Total)> SearchAsync(
             Guid? memberId,
