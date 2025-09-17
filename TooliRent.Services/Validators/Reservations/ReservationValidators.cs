@@ -2,7 +2,7 @@
 using FluentValidation;
 using TooliRent.Services.DTOs.Reservations;
 
-public class ReservationBatchCreateDtoValidator : AbstractValidator<ReservationBatchCreateDto>
+public class ReservationBatchCreateDtoValidator : AbstractValidator<ReservationCreateDto>
 {
     public ReservationBatchCreateDtoValidator()
     {
