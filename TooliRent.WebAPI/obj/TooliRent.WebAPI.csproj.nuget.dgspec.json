@@ -42,6 +42,48 @@
       "frameworks": {
         "net8.0": {
           "targetAlias": "net8.0",
+          "dependencies": {
+            "AutoMapper": {
+              "target": "Package",
+              "version": "[15.0.1, )"
+            },
+            "FluentValidation": {
+              "target": "Package",
+              "version": "[12.0.0, )"
+            },
+            "FluentValidation.AspNetCore": {
+              "target": "Package",
+              "version": "[11.3.1, )"
+            },
+            "FluentValidation.DependencyInjectionExtensions": {
+              "target": "Package",
+              "version": "[12.0.0, )"
+            },
+            "Microsoft.AspNetCore.Authentication.JwtBearer": {
+              "target": "Package",
+              "version": "[8.0.19, )"
+            },
+            "Microsoft.AspNetCore.Identity.EntityFrameworkCore": {
+              "target": "Package",
+              "version": "[8.0.19, )"
+            },
+            "Microsoft.EntityFrameworkCore.Design": {
+              "include": "Runtime, Build, Native, ContentFiles, Analyzers, BuildTransitive",
+              "suppressParent": "All",
+              "target": "Package",
+              "version": "[9.0.7, )"
+            },
+            "Microsoft.EntityFrameworkCore.SqlServer": {
+              "target": "Package",
+              "version": "[9.0.7, )"
+            },
+            "Microsoft.EntityFrameworkCore.Tools": {
+              "include": "Runtime, Build, Native, ContentFiles, Analyzers, BuildTransitive",
+              "suppressParent": "All",
+              "target": "Package",
+              "version": "[9.0.7, )"
+            }
+          },
           "imports": [
             "net461",
             "net462",
@@ -62,14 +104,14 @@
         }
       }
     },
-    "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastrucure/TooliRent.Infrastrucure.csproj": {
+    "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastructure/TooliRent.Infrastructure.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastrucure/TooliRent.Infrastrucure.csproj",
-        "projectName": "TooliRent.Infrastrucure",
-        "projectPath": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastrucure/TooliRent.Infrastrucure.csproj",
+        "projectUniqueName": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastructure/TooliRent.Infrastructure.csproj",
+        "projectName": "TooliRent.Infrastructure",
+        "projectPath": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastructure/TooliRent.Infrastructure.csproj",
         "packagesPath": "/Users/alexanderek/.nuget/packages/",
-        "outputPath": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastrucure/obj/",
+        "outputPath": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastructure/obj/",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "/Users/alexanderek/.nuget/NuGet/NuGet.Config"
@@ -83,7 +125,11 @@
         "frameworks": {
           "net8.0": {
             "targetAlias": "net8.0",
-            "projectReferences": {}
+            "projectReferences": {
+              "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Core/TooliRent.Core.csproj": {
+                "projectPath": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Core/TooliRent.Core.csproj"
+              }
+            }
           }
         },
         "warningProperties": {
@@ -100,6 +146,48 @@
       "frameworks": {
         "net8.0": {
           "targetAlias": "net8.0",
+          "dependencies": {
+            "AutoMapper": {
+              "target": "Package",
+              "version": "[15.0.1, )"
+            },
+            "FluentValidation": {
+              "target": "Package",
+              "version": "[12.0.0, )"
+            },
+            "FluentValidation.AspNetCore": {
+              "target": "Package",
+              "version": "[11.3.1, )"
+            },
+            "FluentValidation.DependencyInjectionExtensions": {
+              "target": "Package",
+              "version": "[12.0.0, )"
+            },
+            "Microsoft.AspNetCore.Authentication.JwtBearer": {
+              "target": "Package",
+              "version": "[8.0.19, )"
+            },
+            "Microsoft.AspNetCore.Identity.EntityFrameworkCore": {
+              "target": "Package",
+              "version": "[8.0.19, )"
+            },
+            "Microsoft.EntityFrameworkCore.Design": {
+              "include": "Runtime, Build, Native, ContentFiles, Analyzers, BuildTransitive",
+              "suppressParent": "All",
+              "target": "Package",
+              "version": "[9.0.7, )"
+            },
+            "Microsoft.EntityFrameworkCore.SqlServer": {
+              "target": "Package",
+              "version": "[9.0.7, )"
+            },
+            "Microsoft.EntityFrameworkCore.Tools": {
+              "include": "Runtime, Build, Native, ContentFiles, Analyzers, BuildTransitive",
+              "suppressParent": "All",
+              "target": "Package",
+              "version": "[9.0.7, )"
+            }
+          },
           "imports": [
             "net461",
             "net462",
@@ -141,7 +229,14 @@
         "frameworks": {
           "net8.0": {
             "targetAlias": "net8.0",
-            "projectReferences": {}
+            "projectReferences": {
+              "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Core/TooliRent.Core.csproj": {
+                "projectPath": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Core/TooliRent.Core.csproj"
+              },
+              "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastructure/TooliRent.Infrastructure.csproj": {
+                "projectPath": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastructure/TooliRent.Infrastructure.csproj"
+              }
+            }
           }
         },
         "warningProperties": {
@@ -158,6 +253,48 @@
       "frameworks": {
         "net8.0": {
           "targetAlias": "net8.0",
+          "dependencies": {
+            "AutoMapper": {
+              "target": "Package",
+              "version": "[15.0.1, )"
+            },
+            "FluentValidation": {
+              "target": "Package",
+              "version": "[12.0.0, )"
+            },
+            "FluentValidation.AspNetCore": {
+              "target": "Package",
+              "version": "[11.3.1, )"
+            },
+            "FluentValidation.DependencyInjectionExtensions": {
+              "target": "Package",
+              "version": "[12.0.0, )"
+            },
+            "Microsoft.AspNetCore.Authentication.JwtBearer": {
+              "target": "Package",
+              "version": "[8.0.19, )"
+            },
+            "Microsoft.AspNetCore.Identity.EntityFrameworkCore": {
+              "target": "Package",
+              "version": "[8.0.19, )"
+            },
+            "Microsoft.EntityFrameworkCore.Design": {
+              "include": "Runtime, Build, Native, ContentFiles, Analyzers, BuildTransitive",
+              "suppressParent": "All",
+              "target": "Package",
+              "version": "[9.0.7, )"
+            },
+            "Microsoft.EntityFrameworkCore.SqlServer": {
+              "target": "Package",
+              "version": "[9.0.7, )"
+            },
+            "Microsoft.EntityFrameworkCore.Tools": {
+              "include": "Runtime, Build, Native, ContentFiles, Analyzers, BuildTransitive",
+              "suppressParent": "All",
+              "target": "Package",
+              "version": "[9.0.7, )"
+            }
+          },
           "imports": [
             "net461",
             "net462",
@@ -203,8 +340,8 @@
               "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Core/TooliRent.Core.csproj": {
                 "projectPath": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Core/TooliRent.Core.csproj"
               },
-              "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastrucure/TooliRent.Infrastrucure.csproj": {
-                "projectPath": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastrucure/TooliRent.Infrastrucure.csproj"
+              "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastructure/TooliRent.Infrastructure.csproj": {
+                "projectPath": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Infrastructure/TooliRent.Infrastructure.csproj"
               },
               "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Services/TooliRent.Services.csproj": {
                 "projectPath": "/Users/alexanderek/RiderProjects/TooliRent/TooliRent.Services/TooliRent.Services.csproj"
@@ -227,6 +364,46 @@
         "net8.0": {
           "targetAlias": "net8.0",
           "dependencies": {
+            "AutoMapper": {
+              "target": "Package",
+              "version": "[15.0.1, )"
+            },
+            "FluentValidation": {
+              "target": "Package",
+              "version": "[12.0.0, )"
+            },
+            "FluentValidation.AspNetCore": {
+              "target": "Package",
+              "version": "[11.3.1, )"
+            },
+            "FluentValidation.DependencyInjectionExtensions": {
+              "target": "Package",
+              "version": "[12.0.0, )"
+            },
+            "Microsoft.AspNetCore.Authentication.JwtBearer": {
+              "target": "Package",
+              "version": "[8.0.19, )"
+            },
+            "Microsoft.AspNetCore.Identity.EntityFrameworkCore": {
+              "target": "Package",
+              "version": "[8.0.19, )"
+            },
+            "Microsoft.EntityFrameworkCore.Design": {
+              "include": "Runtime, Build, Native, ContentFiles, Analyzers, BuildTransitive",
+              "suppressParent": "All",
+              "target": "Package",
+              "version": "[9.0.7, )"
+            },
+            "Microsoft.EntityFrameworkCore.SqlServer": {
+              "target": "Package",
+              "version": "[9.0.7, )"
+            },
+            "Microsoft.EntityFrameworkCore.Tools": {
+              "include": "Runtime, Build, Native, ContentFiles, Analyzers, BuildTransitive",
+              "suppressParent": "All",
+              "target": "Package",
+              "version": "[9.0.7, )"
+            },
             "Swashbuckle.AspNetCore": {
               "target": "Package",
               "version": "[6.4.0, )"
