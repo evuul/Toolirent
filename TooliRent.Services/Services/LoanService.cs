@@ -111,6 +111,17 @@ namespace TooliRent.Services.Services
                     res.Status = ReservationStatus.Completed;
                     await _uow.Reservations.UpdateAsync(res, ct);
 
+                    // --- NYTT: flagga alla tools som otillgängliga ---
+                    foreach (var tId in toolIds)
+                    {
+                        var tool = await _uow.Tools.GetByIdAsync(tId, ct);
+                        if (tool is not null)
+                        {
+                            tool.IsAvailable = false;
+                            await _uow.Tools.UpdateAsync(tool, ct);
+                        }
+                    }
+
                     toCreate.Add(loan);
                 }
                 else
@@ -153,6 +164,17 @@ namespace TooliRent.Services.Services
                         Items           = loanItems,
                         TotalPrice      = totalPerDay * days
                     };
+
+                    // --- NYTT: flagga alla tools i detta lån som otillgängliga ---
+                    foreach (var li in loanItems)
+                    {
+                        var tool = await _uow.Tools.GetByIdAsync(li.ToolId, ct);
+                        if (tool is not null)
+                        {
+                            tool.IsAvailable = false;
+                            await _uow.Tools.UpdateAsync(tool, ct);
+                        }
+                    }
 
                     toCreate.Add(loan);
                 }
@@ -206,6 +228,22 @@ namespace TooliRent.Services.Services
             }
 
             await _uow.Loans.UpdateAsync(loan, ct);
+
+            // --- NYTT: uppdatera Tool.IsAvailable per item om de nu är fria ---
+            var now = DateTime.UtcNow;
+            var toolIds = loan.Items.Select(i => i.ToolId).Distinct().ToArray();
+            foreach (var tId in toolIds)
+            {
+                // Är verktyget fritt *just nu* (ingen annan aktiv reservation/öppet lån)?
+                var freeNow = await _uow.Tools.IsAvailableInWindowAsync(tId, now, now.AddMinutes(1), ct);
+                var tool = await _uow.Tools.GetByIdAsync(tId, ct);
+                if (tool is not null)
+                {
+                    tool.IsAvailable = freeNow;
+                    await _uow.Tools.UpdateAsync(tool, ct);
+                }
+            }
+
             await _uow.SaveChangesAsync(ct);
 
             var updated = await _uow.Loans.GetByIdAsync(id, ct);
@@ -242,6 +280,21 @@ namespace TooliRent.Services.Services
             }
 
             await _uow.Loans.UpdateAsync(loan, ct);
+
+            // --- NYTT: uppdatera Tool.IsAvailable per item om de nu är fria ---
+            var now = DateTime.UtcNow;
+            var toolIds = loan.Items.Select(i => i.ToolId).Distinct().ToArray();
+            foreach (var tId in toolIds)
+            {
+                var freeNow = await _uow.Tools.IsAvailableInWindowAsync(tId, now, now.AddMinutes(1), ct);
+                var tool = await _uow.Tools.GetByIdAsync(tId, ct);
+                if (tool is not null)
+                {
+                    tool.IsAvailable = freeNow;
+                    await _uow.Tools.UpdateAsync(tool, ct);
+                }
+            }
+
             await _uow.SaveChangesAsync(ct);
 
             var updated = await _uow.Loans.GetByIdAsync(id, ct);
