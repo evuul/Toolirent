@@ -55,18 +55,34 @@ public class AuthController : ControllerBase
         var ok = await _userMgr.CheckPasswordAsync(user, dto.Password);
         if (!ok) return Unauthorized("Invalid login attempt.");
 
+        // Hämta roller + ev. Member
+        var roles = await _userMgr.GetRolesAsync(user);
         var member = await _domainDb.Members.AsNoTracking()
             .FirstOrDefaultAsync(m => m.IdentityUserId == user.Id, ct);
 
-        var (jwt, accessExpires) = await GenerateJwtAsync(user, member?.Id);
-        var (refreshToken, refreshExpires) = await IssueRefreshTokenAsync(user.Id, HttpContext.Connection.RemoteIpAddress?.ToString());
+        // Om användaren är (eller även) "Member": kräver aktivt konto
+        var isMember = roles.Contains("Member", StringComparer.OrdinalIgnoreCase);
+        if (isMember)
+        {
+            if (member is null)
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = "Medlemsprofil saknas." });
+
+            if (!member.IsActive)
+                return StatusCode(StatusCodes.Status423Locked, new { message = "Kontot är inaktivt." });
+        }
+
+        var (jwt, accessExpires) = await GenerateJwtAsync(
+            user,
+            member?.Id,
+            member?.IsActive,
+            member?.TokenVersion);        var (refreshToken, refreshExpires) = await IssueRefreshTokenAsync(user.Id, HttpContext.Connection.RemoteIpAddress?.ToString());
 
         return Ok(new
         {
             token = jwt,
-            expires = accessExpires,    // JWT expiry (UTC)
+            expires = accessExpires,
             refreshToken,
-            refreshExpires              // Refresh-token expiry (UTC)
+            refreshExpires
         });
     }
 
@@ -137,60 +153,83 @@ public async Task<IActionResult> Register([FromBody] AuthRegisterRequestDto dto,
 
     // -------- REFRESH --------
     [HttpPost("refresh")]
-    [AllowAnonymous]
-    public async Task<IActionResult> Refresh([FromBody] AuthRefreshRequestDto dto, CancellationToken ct)
+[AllowAnonymous]
+public async Task<IActionResult> Refresh([FromBody] AuthRefreshRequestDto dto, CancellationToken ct)
+{
+    if (string.IsNullOrWhiteSpace(dto.RefreshToken))
+        return BadRequest(new { message = "refreshToken saknas." });
+
+    var incomingHash = Hash(dto.RefreshToken);
+
+    var token = await _authDb.RefreshTokens
+        .AsTracking()
+        .FirstOrDefaultAsync(t => t.TokenHash == incomingHash, ct);
+
+    if (token is null || !token.IsActive)
+        return Unauthorized("Ogiltigt eller inaktivt refresh token.");
+
+    var user = await _userMgr.FindByIdAsync(token.UserId);
+    if (user is null) return Unauthorized("Användare saknas.");
+
+    var roles = await _userMgr.GetRolesAsync(user);
+    var member = await _domainDb.Members.AsNoTracking()
+        .FirstOrDefaultAsync(m => m.IdentityUserId == user.Id, ct);
+
+    // Om "Member": måste vara aktiv vid refresh också
+    var isMember = roles.Contains("Member", StringComparer.OrdinalIgnoreCase);
+    if (isMember)
     {
-        if (string.IsNullOrWhiteSpace(dto.RefreshToken))
-            return BadRequest(new { message = "refreshToken saknas." });
+        if (member is null)
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = "Medlemsprofil saknas." });
 
-        var incomingHash = Hash(dto.RefreshToken);
-
-        var token = await _authDb.RefreshTokens
-            .AsTracking()
-            .FirstOrDefaultAsync(t => t.TokenHash == incomingHash, ct);
-
-        if (token is null || !token.IsActive)
-            return Unauthorized("Ogiltigt eller inaktivt refresh token.");
-
-        // Rotera: revokera gammalt + skapa nytt
-        token.RevokedAtUtc = DateTime.UtcNow;
-        token.RevokedByIp = HttpContext.Connection.RemoteIpAddress?.ToString();
-        token.RevokedReason = "Rotated on refresh";
-
-        var newRaw = GenerateSecureRandomToken();
-        var newHash = Hash(newRaw);
-        var refreshExpires = DateTime.UtcNow.Add(RefreshTokenLifetime);
-
-        var replacement = new RefreshToken
+        if (!member.IsActive)
         {
-            Id = Guid.NewGuid(),
-            UserId = token.UserId,
-            TokenHash = newHash,
-            ExpiresAtUtc = refreshExpires,
-            CreatedAtUtc = DateTime.UtcNow,
-            CreatedByIp = HttpContext.Connection.RemoteIpAddress?.ToString()
-        };
-        token.ReplacedByTokenHash = newHash;
+            // valfritt: revokera inkommande refresh token direkt
+            token.RevokedAtUtc = DateTime.UtcNow;
+            token.RevokedByIp = HttpContext.Connection.RemoteIpAddress?.ToString();
+            token.RevokedReason = "Account inactive";
+            await _authDb.SaveChangesAsync(ct);
 
-        _authDb.RefreshTokens.Add(replacement);
-        await _authDb.SaveChangesAsync(ct);
-
-        var user = await _userMgr.FindByIdAsync(token.UserId);
-        if (user is null) return Unauthorized("Användare saknas.");
-
-        var member = await _domainDb.Members.AsNoTracking()
-            .FirstOrDefaultAsync(m => m.IdentityUserId == user.Id, ct);
-
-        var (jwt, accessExpires) = await GenerateJwtAsync(user, member?.Id);
-
-        return Ok(new
-        {
-            token = jwt,
-            expires = accessExpires,
-            refreshToken = newRaw,
-            refreshExpires
-        });
+            return StatusCode(StatusCodes.Status423Locked, new { message = "Kontot är inaktivt." });
+        }
     }
+
+    // Rotera refresh token (som tidigare) …
+    token.RevokedAtUtc = DateTime.UtcNow;
+    token.RevokedByIp = HttpContext.Connection.RemoteIpAddress?.ToString();
+    token.RevokedReason = "Rotated on refresh";
+
+    var newRaw = GenerateSecureRandomToken();
+    var newHash = Hash(newRaw);
+    var refreshExpires = DateTime.UtcNow.Add(RefreshTokenLifetime);
+
+    var replacement = new RefreshToken
+    {
+        Id = Guid.NewGuid(),
+        UserId = token.UserId,
+        TokenHash = newHash,
+        ExpiresAtUtc = refreshExpires,
+        CreatedAtUtc = DateTime.UtcNow,
+        CreatedByIp = HttpContext.Connection.RemoteIpAddress?.ToString()
+    };
+    token.ReplacedByTokenHash = newHash;
+
+    _authDb.RefreshTokens.Add(replacement);
+    await _authDb.SaveChangesAsync(ct);
+
+    var (jwt, accessExpires) = await GenerateJwtAsync(
+        user,
+        member?.Id,
+        member?.IsActive,
+        member?.TokenVersion);
+    return Ok(new
+    {
+        token = jwt,
+        expires = accessExpires,
+        refreshToken = newRaw,
+        refreshExpires
+    });
+}
 
     // -------- LOGOUT (revokera refresh token) --------
     [HttpPost("logout")]
@@ -243,12 +282,16 @@ public async Task<IActionResult> Register([FromBody] AuthRegisterRequestDto dto,
 
     // ================= Helpers =================
 
-    private async Task<(string jwt, DateTime expires)> GenerateJwtAsync(IdentityUser user, Guid? memberId)
+    private async Task<(string jwt, DateTime expires)> GenerateJwtAsync(
+        IdentityUser user,
+        Guid? memberId,
+        bool? isActive = null,
+        int? tokenVersion = null)
     {
         var roles = await _userMgr.GetRolesAsync(user);
         var jwtCfg = _cfg.GetSection("Jwt");
 
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtCfg["Key"]!));
+        var key   = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtCfg["Key"]!));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
         var claims = new List<Claim>
@@ -256,12 +299,18 @@ public async Task<IActionResult> Register([FromBody] AuthRegisterRequestDto dto,
             new(JwtRegisteredClaimNames.Sub, user.Id),
             new(JwtRegisteredClaimNames.Email, user.Email ?? ""),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-            new(ClaimTypes.NameIdentifier, user.Id),
+            new(ClaimTypes.NameIdentifier, user.Id),     // IdentityUserId
             new(ClaimTypes.Name, user.Email ?? "")
         };
 
         if (memberId.HasValue)
+        {
             claims.Add(new("memberId", memberId.Value.ToString()));
+            if (isActive.HasValue)
+                claims.Add(new("is_active", isActive.Value ? "true" : "false"));
+            if (tokenVersion.HasValue)
+                claims.Add(new("ver", tokenVersion.Value.ToString())); // token version claim
+        }
 
         claims.AddRange(roles.Select(r => new Claim(ClaimTypes.Role, r)));
 

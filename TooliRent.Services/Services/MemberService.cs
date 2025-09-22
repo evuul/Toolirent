@@ -133,4 +133,14 @@ public class MemberService : IMemberService
         await _uow.Members.UpdateAsync(member, ct);
         return await _uow.SaveChangesAsync(ct) > 0;
     }
+    
+    public async Task<(bool Success, string? IdentityUserId)> SetActiveAndBumpAsync(
+        Guid memberId, bool isActive, CancellationToken ct = default)
+    {
+        var (ok, identityUserId) =
+            await _uow.Members.SetActiveAndBumpTokenVersionAsync(memberId, isActive, ct);
+
+        // (Valfritt) annan domänlogik/loggning här
+        return (ok, identityUserId);
+    }
 }

@@ -66,4 +66,25 @@ public class MemberRepository : Repository<Member>, IMemberRepository
 
         return (items, total);
     }
+    public async Task<(bool Success, string? IdentityUserId)> SetActiveAndBumpTokenVersionAsync(
+        Guid memberId, bool isActive, CancellationToken ct = default)
+    {
+        // Hämta IdentityUserId först (utan tracking)
+        var identityUserId = await _db.Members
+            .Where(m => m.Id == memberId)
+            .Select(m => m.IdentityUserId)
+            .FirstOrDefaultAsync(ct);
+
+        if (identityUserId is null) return (false, null);
+
+        // Atomisk update av IsActive + TokenVersion
+        var rows = await _db.Members
+            .Where(m => m.Id == memberId)
+            .ExecuteUpdateAsync(up => up
+                    .SetProperty(m => m.IsActive, isActive)
+                    .SetProperty(m => m.TokenVersion, m => m.TokenVersion + 1),
+                ct);
+
+        return (rows > 0, identityUserId);
+    }
 }

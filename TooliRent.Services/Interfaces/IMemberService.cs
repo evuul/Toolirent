@@ -28,4 +28,11 @@ public interface IMemberService
     /// Inaktiva medlemmar kan inte logga in.
     /// </summary>
     Task<bool> SetActiveAsync(Guid memberId, bool isActive, CancellationToken ct = default);
+    
+    /// <summary>
+    /// Sätt aktiv/inaktiv. Bump:ar TokenVersion och returnerar IdentityUserId
+    /// så att refresh-tokens kan revokeras av anroparen (controller).
+    /// </summary>
+    Task<(bool Success, string? IdentityUserId)> SetActiveAndBumpAsync(
+        Guid memberId, bool isActive, CancellationToken ct = default);
 }
