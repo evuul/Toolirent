@@ -23,6 +23,11 @@ using TooliRent.Services.Interfaces;
 using TooliRent.Services.Services;
 using TooliRent.Services.Mapping;            // MappingProfile
 
+// ===== Authorization (policy/handler för aktiva medlemmar) =====
+using Microsoft.AspNetCore.Authorization;
+using TooliRent.Services.Validators.Auths;
+using TooliRent.WebAPI.Validators.Auth; // <-- ActiveMemberRequirement, ActiveMemberHandler
+
 var builder = WebApplication.CreateBuilder(args);
 
 // ----------------------------
@@ -69,7 +74,19 @@ builder.Services
         };
     });
 
-builder.Services.AddAuthorization();
+// ----------------------------
+// Authorization (policies)
+// ----------------------------
+// Lägg till en policy som kräver att "Member" är aktiv och att token-versionen matchar DB.
+// Används på alla "me"-endpoints: [Authorize(Roles = "Member", Policy = "ActiveMember")]
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("ActiveMember", policy =>
+        policy.AddRequirements(new ActiveMemberRequirement()));
+});
+
+// Registrera vår custom authorization handler som implementerar logiken ovan.
+builder.Services.AddScoped<IAuthorizationHandler, ActiveMemberHandler>();
 
 // ----------------------------
 // Repositories + UnitOfWork (DI)
