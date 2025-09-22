@@ -7,6 +7,11 @@ using TooliRent.Services.DTOs.Loans;     // LoanCheckoutDto, LoanDto
 using TooliRent.Services.Exceptions;     // BatchReservationFailedException, ToolUnavailableException
 using TooliRent.Services.Interfaces;
 
+// +++ för revocation av refresh tokens + aktiv-check
+using TooliRent.Infrastructure.Auth;        // AuthDbContext
+using System.Linq;
+using Microsoft.EntityFrameworkCore;
+
 namespace TooliRent.WebAPI.Controllers;
 
 [ApiController]
@@ -19,16 +24,21 @@ public class AdminController : ControllerBase
     private readonly IReservationService _reservations;
     private readonly ILoanService _loans;
 
+    // +++ för refresh-token revocation
+    private readonly AuthDbContext _authDb;
+
     public AdminController(
         IAdminService admin,
         IMemberService members,
         IReservationService reservations,
-        ILoanService loans)
+        ILoanService loans,
+        AuthDbContext authDb) // +++
     {
         _admin = admin;
         _members = members;
         _reservations = reservations;
         _loans = loans;
+        _authDb = authDb; // +++
     }
 
     // ================== STATISTIK ==================
@@ -84,8 +94,31 @@ public class AdminController : ControllerBase
     {
         if (body is null) return BadRequest(new { message = "Body krävs." });
 
-        var ok = await _members.SetActiveAsync(id, body.IsActive, ct);
-        return ok ? NoContent() : NotFound();
+        // Byt till atomiska varianten: sätter IsActive + bump:ar TokenVersion och returnerar IdentityUserId
+        var (ok, identityUserId) = await _members.SetActiveAndBumpAsync(id, body.IsActive, ct);
+        if (!ok) return NotFound();
+
+        // Vid avaktivering: revokera alla aktiva refresh tokens för IdentityUserId
+        if (!body.IsActive && !string.IsNullOrEmpty(identityUserId))
+        {
+            var now = DateTime.UtcNow;
+            var ip  = HttpContext.Connection.RemoteIpAddress?.ToString();
+
+            var tokens = _authDb.RefreshTokens
+                .Where(t => t.UserId == identityUserId
+                            && t.RevokedAtUtc == null
+                            && t.ExpiresAtUtc > now);
+
+            await foreach (var t in tokens.AsAsyncEnumerable().WithCancellation(ct))
+            {
+                t.RevokedAtUtc  = now;
+                t.RevokedByIp   = ip;
+                t.RevokedReason = "Member deactivated by admin";
+            }
+            await _authDb.SaveChangesAsync(ct);
+        }
+
+        return NoContent();
     }
 
     [HttpPost("members/{id:guid}/deactivate")]
@@ -106,12 +139,34 @@ public class AdminController : ControllerBase
 
     private async Task<IActionResult> Toggle(Guid id, bool isActive, CancellationToken ct)
     {
-        var ok = await _members.SetActiveAsync(id, isActive, ct);
-        return ok ? NoContent() : NotFound();
+        // återanvänd samma logik som i SetMemberStatus
+        var (ok, identityUserId) = await _members.SetActiveAndBumpAsync(id, isActive, ct);
+        if (!ok) return NotFound();
+
+        if (!isActive && !string.IsNullOrEmpty(identityUserId))
+        {
+            var now = DateTime.UtcNow;
+            var ip  = HttpContext.Connection.RemoteIpAddress?.ToString();
+
+            var tokens = _authDb.RefreshTokens
+                .Where(t => t.UserId == identityUserId
+                            && t.RevokedAtUtc == null
+                            && t.ExpiresAtUtc > now);
+
+            await foreach (var t in tokens.AsAsyncEnumerable().WithCancellation(ct))
+            {
+                t.RevokedAtUtc  = now;
+                t.RevokedByIp   = ip;
+                t.RevokedReason = "Member deactivated by admin";
+            }
+            await _authDb.SaveChangesAsync(ct);
+        }
+
+        return NoContent();
     }
 
     // ============ ADMIN: RESERVATIONER (BATCH) ============
-    [HttpPost("reservations/batch")]
+    [HttpPost("reservations/verktyg")]
     [ProducesResponseType(typeof(ReservationBatchResultDto), 200)]
     [ProducesResponseType(typeof(ProblemDetails), 400)]
     [ProducesResponseType(typeof(ProblemDetails), 401)]
@@ -124,6 +179,11 @@ public class AdminController : ControllerBase
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
         if (dto.MemberId is null || dto.MemberId == Guid.Empty)
             return BadRequest(new { message = "MemberId krävs för batch-skapande som admin." });
+
+        // +++ Kolla att medlemmen är aktiv
+        var m = await _members.GetAsync(dto.MemberId.Value, ct);
+        if (m is null) return NotFound(new { message = "Medlem hittas inte." });
+        if (!m.IsActive) return StatusCode(StatusCodes.Status423Locked, new { message = "Medlemmen är inaktiv." });
 
         try
         {
@@ -164,7 +224,7 @@ public class AdminController : ControllerBase
     ///  - Via reservation: ange ReservationId (medlem verifieras mot memberId i URL).
     ///  - Direktlån: ange ToolIds + DueAtUtc (ett lån kan innehålla flera verktyg).
     /// </summary>
-    [HttpPost("members/{memberId:guid}/loans/checkout-batch")]
+    [HttpPost("members/{memberId:guid}/loans/checkout-verktyg")]
     [ProducesResponseType(typeof(IEnumerable<LoanDto>), 201)]
     [ProducesResponseType(typeof(ProblemDetails), 400)]
     [ProducesResponseType(typeof(ProblemDetails), 401)]
@@ -178,6 +238,11 @@ public class AdminController : ControllerBase
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
         if (items is null || !items.Any())
             return BadRequest(new { message = "Minst ett item krävs." });
+
+        // +++ Kolla att medlemmen är aktiv
+        var m = await _members.GetAsync(memberId, ct);
+        if (m is null) return NotFound(new { message = "Medlem hittas inte." });
+        if (!m.IsActive) return StatusCode(StatusCodes.Status423Locked, new { message = "Medlemmen är inaktiv." });
 
         try
         {
