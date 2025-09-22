@@ -1,4 +1,5 @@
 // TooliRent.Infrastructure/Repositories/ToolRepository.cs
+using System.Linq; // <- behövs för Where/OrderBy/Any/Distinct
 using Microsoft.EntityFrameworkCore;
 using TooliRent.Core.Enums;
 using TooliRent.Core.Interfaces;
@@ -16,10 +17,16 @@ public class ToolRepository : Repository<Tool>, IToolRepository
 
     public async Task<IEnumerable<Tool>> GetByCategoryAsync(Guid categoryId, CancellationToken ct = default)
         => await _db.Tools.AsNoTracking()
-            .Where(t => t.CategoryId == categoryId)
+            .Where(t => t.DeletedAtUtc == null && t.CategoryId == categoryId)
             .OrderBy(t => t.Name)
             .ToListAsync(ct);
 
+    /// <summary>
+    /// Sök/lista verktyg. Om isAvailable == true filtreras "tillgänglig JUST NU":
+    ///  - Inget öppet lån på verktyget
+    ///  - Ingen aktiv reservation som överlappar nu
+    ///  - Tool.IsAvailable (manuell "ur bruk"/trasig-flagga) måste vara true
+    /// </summary>
     public async Task<(IEnumerable<Tool> Items, int TotalCount)> SearchAsync(
         Guid? categoryId,
         bool? isAvailable,
@@ -30,21 +37,60 @@ public class ToolRepository : Repository<Tool>, IToolRepository
     {
         if (page <= 0) page = 1;
         if (pageSize <= 0) pageSize = 20;
+        if (pageSize > 200) pageSize = 200;
 
-        var q = _db.Tools.AsNoTracking().AsQueryable();
+        var now = DateTime.UtcNow;
+
+        // Bas: ej soft-deletade
+        var q = _db.Tools.AsNoTracking()
+            .Where(t => t.DeletedAtUtc == null);
 
         if (categoryId is Guid cid && cid != Guid.Empty)
             q = q.Where(t => t.CategoryId == cid);
-
-        if (isAvailable is bool avail)
-            q = q.Where(t => t.IsAvailable == avail);
 
         if (!string.IsNullOrWhiteSpace(query))
         {
             var term = query.Trim();
             q = q.Where(t =>
-                t.Name.Contains(term) ||
-                (t.Description != null && t.Description.Contains(term)));
+                EF.Functions.Like(t.Name, $"%{term}%") ||
+                (t.Description != null && EF.Functions.Like(t.Description, $"%{term}%")));
+        }
+
+        if (isAvailable.HasValue)
+        {
+            if (isAvailable.Value)
+            {
+                // Tillgänglig JUST NU = manuellt tillgänglig OCH inte blockerad av lån/reservation nu
+                q = q.Where(t => t.IsAvailable)
+                     .Where(t =>
+                        // Inga öppna lån
+                        !_db.LoanItems.Any(li =>
+                            li.ToolId == t.Id &&
+                            li.Loan.Status == LoanStatus.Open)
+                        &&
+                        // Ingen aktiv reservation som pågår nu
+                        !_db.ReservationItems.Any(ri =>
+                            ri.ToolId == t.Id &&
+                            ri.Reservation.Status == ReservationStatus.Active &&
+                            now < ri.Reservation.EndUtc &&
+                            now >= ri.Reservation.StartUtc)
+                     );
+            }
+            else
+            {
+                // Inte tillgänglig nu = manuellt spärrad ELLER upptagen av lån/reservation just nu
+                q = q.Where(t =>
+                        !t.IsAvailable
+                        || _db.LoanItems.Any(li =>
+                            li.ToolId == t.Id &&
+                            li.Loan.Status == LoanStatus.Open)
+                        || _db.ReservationItems.Any(ri =>
+                            ri.ToolId == t.Id &&
+                            ri.Reservation.Status == ReservationStatus.Active &&
+                            now < ri.Reservation.EndUtc &&
+                            now >= ri.Reservation.StartUtc)
+                    );
+            }
         }
 
         var total = await q.CountAsync(ct);
@@ -60,52 +106,31 @@ public class ToolRepository : Repository<Tool>, IToolRepository
 
     // ---------- Availability (READ) ----------
 
+    /// <summary>
+    /// "Lediga i fönster" = manuellt tillgängliga OCH ingen överlapp mot öppna lån/aktiva reservationer i fönstret.
+    /// </summary>
     public async Task<IEnumerable<Tool>> GetAvailableInWindowAsync(
         DateTime fromUtc,
         DateTime toUtc,
         CancellationToken ct = default)
     {
-        // Starta från alla verktyg som är flaggade som tillgängliga
-        var baseIds = await _db.Tools.AsNoTracking()
-            .Where(t => t.IsAvailable)
-            .Select(t => t.Id)
-            .ToListAsync(ct);
+        var q = _db.Tools.AsNoTracking()
+            .Where(t => t.DeletedAtUtc == null && t.IsAvailable)
+            .Where(t =>
+                !_db.LoanItems.Any(li =>
+                    li.ToolId == t.Id &&
+                    li.Loan.Status == LoanStatus.Open &&
+                    // överlappning: [CheckedOut, Due) vs [from, to)
+                    fromUtc < li.Loan.DueAtUtc && toUtc > li.Loan.CheckedOutAtUtc)
+                &&
+                !_db.ReservationItems.Any(ri =>
+                    ri.ToolId == t.Id &&
+                    ri.Reservation.Status == ReservationStatus.Active &&
+                    // överlappning: [ResStart, ResEnd) vs [from, to)
+                    fromUtc < ri.Reservation.EndUtc && toUtc > ri.Reservation.StartUtc)
+            );
 
-        if (baseIds.Count == 0) return Enumerable.Empty<Tool>();
-
-        // Hitta konflikter från aktiva reservationer
-        var reservationConflicts = await _db.Reservations.AsNoTracking()
-            .Where(r => r.Status == ReservationStatus.Active
-                        && r.StartUtc < toUtc
-                        && r.EndUtc   > fromUtc)
-            .SelectMany(r => r.Items)
-            .Where(ri => baseIds.Contains(ri.ToolId))
-            .Select(ri => ri.ToolId)
-            .Distinct()
-            .ToListAsync(ct);
-
-        // Hitta konflikter från öppna lån
-        var loanConflicts = await _db.Loans.AsNoTracking()
-            .Where(l => l.Status == LoanStatus.Open
-                        && l.CheckedOutAtUtc < toUtc
-                        && l.DueAtUtc       > fromUtc)
-            .SelectMany(l => l.Items)
-            .Where(li => baseIds.Contains(li.ToolId))
-            .Select(li => li.ToolId)
-            .Distinct()
-            .ToListAsync(ct);
-
-        var conflicts = new HashSet<Guid>(reservationConflicts);
-        foreach (var x in loanConflicts) conflicts.Add(x);
-
-        var okIds = baseIds.Where(id => !conflicts.Contains(id)).ToList();
-
-        if (okIds.Count == 0) return Enumerable.Empty<Tool>();
-
-        return await _db.Tools.AsNoTracking()
-            .Where(t => okIds.Contains(t.Id))
-            .OrderBy(t => t.Name)
-            .ToListAsync(ct);
+        return await q.OrderBy(t => t.Name).ToListAsync(ct);
     }
 
     public async Task<bool> IsAvailableInWindowAsync(
@@ -114,8 +139,28 @@ public class ToolRepository : Repository<Tool>, IToolRepository
         DateTime toUtc,
         CancellationToken ct = default)
     {
-        var dict = await AreAvailableInWindowAsync(new[] { toolId }, fromUtc, toUtc, null, null, ct);
-        return dict.TryGetValue(toolId, out var ok) && ok;
+        // manuellt ur bruk?
+        var tool = await _db.Tools.AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Id == toolId && t.DeletedAtUtc == null, ct);
+
+        if (tool is null) return false;
+        if (!tool.IsAvailable) return false;
+
+        var hasOpenLoanOverlap = await _db.LoanItems
+            .AnyAsync(li =>
+                li.ToolId == toolId &&
+                li.Loan.Status == LoanStatus.Open &&
+                fromUtc < li.Loan.DueAtUtc && toUtc > li.Loan.CheckedOutAtUtc, ct);
+
+        if (hasOpenLoanOverlap) return false;
+
+        var hasActiveReservationOverlap = await _db.ReservationItems
+            .AnyAsync(ri =>
+                ri.ToolId == toolId &&
+                ri.Reservation.Status == ReservationStatus.Active &&
+                fromUtc < ri.Reservation.EndUtc && toUtc > ri.Reservation.StartUtc, ct);
+
+        return !hasActiveReservationOverlap;
     }
 
     public async Task<IDictionary<Guid, bool>> AreAvailableInWindowAsync(
@@ -129,49 +174,39 @@ public class ToolRepository : Repository<Tool>, IToolRepository
         var ids = toolIds.Distinct().ToArray();
         if (ids.Length == 0) return new Dictionary<Guid, bool>();
 
-        // Konflikter från aktiva reservationer i fönstret
-        var reservationConflicts = await _db.Reservations
-            .AsNoTracking()
-            .Where(r => r.Status == ReservationStatus.Active
-                        && r.StartUtc < endUtc
-                        && r.EndUtc   > startUtc
-                        && (ignoreReservationId == null || r.Id != ignoreReservationId.Value))
-            .SelectMany(r => r.Items)
-            .Where(ri => ids.Contains(ri.ToolId))
-            .Select(ri => ri.ToolId)
-            .Distinct()
+        // Manuellt otillgängliga / soft-deletade → false direkt
+        var blockedFlags = await _db.Tools.AsNoTracking()
+            .Where(t => ids.Contains(t.Id))
+            .Select(t => new { t.Id, Flag = (t.DeletedAtUtc != null || !t.IsAvailable) })
             .ToListAsync(ct);
 
-        // Konflikter från öppna lån i fönstret
-        var loanConflicts = await _db.Loans
-            .AsNoTracking()
-            .Where(l => l.Status == LoanStatus.Open
-                        && l.CheckedOutAtUtc < endUtc
-                        && l.DueAtUtc       > startUtc
-                        && (ignoreLoanId == null || l.Id != ignoreLoanId.Value))
-            .SelectMany(l => l.Items)
-            .Where(li => ids.Contains(li.ToolId))
+        var result = ids.ToDictionary(id => id, _ => true);
+        foreach (var b in blockedFlags.Where(x => x.Flag))
+            result[b.Id] = false;
+
+        // Öppna lån som överlappar fönstret
+        var loanBlocked = await _db.LoanItems.AsNoTracking()
+            .Where(li => ids.Contains(li.ToolId)
+                         && li.Loan.Status == LoanStatus.Open
+                         && (ignoreLoanId == null || li.LoanId != ignoreLoanId.Value)
+                         && startUtc < li.Loan.DueAtUtc && endUtc > li.Loan.CheckedOutAtUtc)
             .Select(li => li.ToolId)
             .Distinct()
             .ToListAsync(ct);
 
-        var conflicts = new HashSet<Guid>(reservationConflicts);
-        foreach (var x in loanConflicts) conflicts.Add(x);
+        foreach (var id in loanBlocked) result[id] = false;
 
-        // Bygg resultat: true om inte konflikt och verktyget är flaggat som tillgängligt
-        var availableFlags = await _db.Tools.AsNoTracking()
-            .Where(t => ids.Contains(t.Id))
-            .Select(t => new { t.Id, t.IsAvailable })
+        // Aktiva reservationer som överlappar fönstret
+        var resBlocked = await _db.ReservationItems.AsNoTracking()
+            .Where(ri => ids.Contains(ri.ToolId)
+                         && ri.Reservation.Status == ReservationStatus.Active
+                         && (ignoreReservationId == null || ri.ReservationId != ignoreReservationId.Value)
+                         && startUtc < ri.Reservation.EndUtc && endUtc > ri.Reservation.StartUtc)
+            .Select(ri => ri.ToolId)
+            .Distinct()
             .ToListAsync(ct);
 
-        var result = new Dictionary<Guid, bool>(ids.Length);
-        var flagMap = availableFlags.ToDictionary(a => a.Id, a => a.IsAvailable);
-
-        foreach (var id in ids)
-        {
-            var flagOk = flagMap.TryGetValue(id, out var isAvailFlag) ? isAvailFlag : false;
-            result[id] = flagOk && !conflicts.Contains(id);
-        }
+        foreach (var id in resBlocked) result[id] = false;
 
         return result;
     }
