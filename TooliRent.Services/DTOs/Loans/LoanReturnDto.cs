@@ -6,6 +6,5 @@ namespace TooliRent.Services.DTOs.Loans;
 /// - ReturnedAtUtc sätts alltid av servern
 /// </summary>
 public record LoanReturnDto(
-    Guid LoanId,
     string? Notes
 );
