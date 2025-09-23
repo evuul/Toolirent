@@ -4,7 +4,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TooliRent.WebAPI", "TooliRe
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TooliRent.Core", "TooliRent.Core\TooliRent.Core.csproj", "{1EBC7FFF-5641-4A6E-8587-9BDBF5AE7C09}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TooliRent.Infrastrucure", "TooliRent.Infrastrucure\TooliRent.Infrastrucure.csproj", "{B2618778-661E-41E3-8807-BCF8345D61C9}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TooliRent.Infrastructure", "TooliRent.Infrastructure\TooliRent.Infrastructure.csproj", "{B2618778-661E-41E3-8807-BCF8345D61C9}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TooliRent.Services", "TooliRent.Services\TooliRent.Services.csproj", "{A11A50B7-71D4-4157-8A3F-533E25D15959}"
 EndProject
